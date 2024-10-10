@@ -34,6 +34,7 @@ class RecursiveAbstractiveProcessing4TreeOrganizedRetrieval:
         self._prompt = prompt
         self._max_token = max_token
 
+    ## 高斯混合聚类
     def _get_optimal_clusters(self, embeddings: np.ndarray, random_state:int):
         max_clusters = min(self._max_cluster, len(embeddings))
         n_clusters = np.arange(1, max_clusters)
@@ -74,6 +75,7 @@ class RecursiveAbstractiveProcessing4TreeOrganizedRetrieval:
         while end - start > 1:
             embeddings = [embd for _, embd in chunks[start: end]]
             if len(embeddings) == 2:
+                ##两个chunk
                 summarize([start, start+1], Lock())
                 if callback:
                     callback(msg="Cluster one layer: {} -> {}".format(end-start, len(chunks)-end))
@@ -98,6 +100,7 @@ class RecursiveAbstractiveProcessing4TreeOrganizedRetrieval:
                 lbls = [lbl[0] if isinstance(lbl, np.ndarray) else lbl for lbl in lbls]
             lock = Lock()
             with ThreadPoolExecutor(max_workers=12) as executor:
+                ## 聚类后对每个类别的结果进行总结
                 threads = []
                 for c in range(n_clusters):
                     ck_idx = [i+start for i in range(len(lbls)) if lbls[i] == c]

@@ -158,13 +158,17 @@ class Dealer:
                 tks.append(t)
         return tks
 
+    ## 计算输入的词汇 tks 的权重，每个词汇的权重基于词汇的频率、命名实体识别、词性标注等多个维度，并通过多种规则进行加权
+    ## 一个包含词汇及其标准化权重的列表
     def weights(self, tks):
         def skill(t):
+            ## 专业词汇
             if t not in self.sk:
                 return 1
             return 6
 
         def ner(t):
+            ## 根据命名实体识别（NER）的结果给词汇分配权重
             if re.match(r"[0-9,.]{2,}$", t):
                 return 2
             if re.match(r"[a-z]{1,2}$", t):
@@ -176,6 +180,7 @@ class Dealer:
             return m[self.ne[t]]
 
         def postag(t):
+            ## 根据词汇的词性（如名词、动词等）分配权重
             t = rag_tokenizer.tag(t)
             if t in set(["r", "c", "d"]):
                 return 0.3
@@ -188,6 +193,7 @@ class Dealer:
             return 1
 
         def freq(t):
+            ## 词频给词汇 t 赋权重
             if re.match(r"[0-9. -]{2,}$", t):
                 return 3
             s = rag_tokenizer.freq(t)
@@ -206,6 +212,7 @@ class Dealer:
             return max(s, 10)
 
         def df(t):
+            ## 基于词汇在文档中出现的频次分配权重
             if re.match(r"[0-9. -]{2,}$", t):
                 return 5
             if t in self.df:
@@ -218,7 +225,7 @@ class Dealer:
                     return max(3, np.min([df(tt) for tt in s]) / 6.)
 
             return 3
-
+        ## 逆文档频率
         def idf(s, N): return math.log10(10 + ((N - s + 0.5) / (s + 0.5)))
 
         tw = []

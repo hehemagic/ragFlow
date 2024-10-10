@@ -59,7 +59,7 @@ class LayoutRecognizer(Recognizer):
                     "\\(cid *: *[0-9]+ *\\)"
                     ]
             return any([re.search(p, b["text"]) for p in patt])
-
+        ## 识别后的结果：type/boxes/score
         layouts = super().__call__(image_list, thr, batch_size)
         # save_results(image_list, layouts, self.labels, output_dir='output/', threshold=0.7)
         assert len(image_list) == len(ocr_res)
@@ -70,14 +70,17 @@ class LayoutRecognizer(Recognizer):
         page_layout = []
         for pn, lts in enumerate(layouts):
             bxs = ocr_res[pn]
+            ## 筛选score>0.8的box
             lts = [{"type": b["type"],
                     "score": float(b["score"]),
                     "x0": b["bbox"][0] / scale_factor, "x1": b["bbox"][2] / scale_factor,
                     "top": b["bbox"][1] / scale_factor, "bottom": b["bbox"][-1] / scale_factor,
                     "page_number": pn,
                     } for b in lts if float(b["score"]) >= 0.8 or b["type"] not in self.garbage_layouts]
+            ## 按照Y轴排序
             lts = self.sort_Y_firstly(lts, np.mean(
                 [l["bottom"] - l["top"] for l in lts]) / 2)
+            ## 处理识别的boxes
             lts = self.layouts_cleanup(bxs, lts)
             page_layout.append(lts)
 
@@ -88,12 +91,13 @@ class LayoutRecognizer(Recognizer):
                 i = 0
                 while i < len(bxs):
                     if bxs[i].get("layout_type"):
+                        ## 跳过已标记的boxes
                         i += 1
                         continue
                     if __is_garbage(bxs[i]):
                         bxs.pop(i)
                         continue
-
+                    ## 寻找和当前box重叠最大的box
                     ii = self.find_overlapped_with_threashold(bxs[i], lts_,
                                                               thr=0.4)
                     if ii is None:  # belong to nothing
@@ -107,6 +111,7 @@ class LayoutRecognizer(Recognizer):
                         lts_[
                             ii]["type"] == "header" and bxs[i]["top"] > image_list[pn].size[1] * 0.1 / scale_factor,
                     ]
+                    ## 垃圾内容则丢弃
                     if drop and lts_[
                             ii]["type"] in self.garbage_layouts and not any(keep_feats):
                         if lts_[ii]["type"] not in garbages:
@@ -116,6 +121,7 @@ class LayoutRecognizer(Recognizer):
                         continue
 
                     bxs[i]["layoutno"] = f"{ty}-{ii}"
+                    ## 将公式标记为figure
                     bxs[i]["layout_type"] = lts_[ii]["type"] if lts_[
                         ii]["type"] != "equation" else "figure"
                     i += 1

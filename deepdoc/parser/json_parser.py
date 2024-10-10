@@ -22,6 +22,7 @@ class RAGFlowJsonParser:
         encoding = find_codec(binary)
         txt = binary.decode(encoding, errors="ignore")
         json_data = json.loads(txt)
+        ## 切分后，每个chunk都是一个dict，包含了结构信息
         chunks = self.split_json(json_data, True)   
         sections = [json.dumps(l, ensure_ascii=False) for l in chunks if l]
         return sections
@@ -38,6 +39,7 @@ class RAGFlowJsonParser:
             d = d.setdefault(key, {})
         d[path[-1]] = value
 
+    ## 将list转为dict
     def _list_to_dict_preprocessing(self, data: Any) -> Any:
         if isinstance(data, dict):
             # Process each key-value pair in the dictionary
@@ -51,7 +53,8 @@ class RAGFlowJsonParser:
         else:
             # Base case: the item is neither a dict nor a list, so return it unchanged
             return data
-        
+    
+    ## 将大的json进行分块，分块后的json，会保留原始的结构信息
     def _json_split(
         self,
         data: Dict[str, Any],

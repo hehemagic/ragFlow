@@ -23,6 +23,7 @@ class RAGFlowPptParser(object):
         if shape.shape_type == 19:
             tb = shape.table
             rows = []
+            ## 表格使用文字描述
             for i in range(1, len(tb.rows)):
                 rows.append("; ".join([tb.cell(
                     0, j).text + ": " + tb.cell(i, j).text for j in range(len(tb.columns)) if tb.cell(i, j)]))
@@ -32,6 +33,7 @@ class RAGFlowPptParser(object):
             return shape.text_frame.text
 
         if shape.shape_type == 6:
+            ## 提取文本内容
             texts = []
             for p in sorted(shape.shapes, key=lambda x: (x.top // 10, x.left)):
                 t = self.__extract(p)

@@ -27,8 +27,10 @@ class RAGFlowDocxParser:
             df.append([c.text for c in row.cells])
         return self.__compose_table_content(pd.DataFrame(df))
 
+    ## 输出表格内容，非html格式，字符串形式
     def __compose_table_content(self, df):
 
+        ## 确认单元格的类型
         def blockType(b):
             patt = [
                 ("^(20|19)[0-9]{2}[年/-][0-9]{1,2}[月/-][0-9]{1,2}日*$", "Dt"),
@@ -61,6 +63,7 @@ class RAGFlowDocxParser:
 
         if len(df) < 2:
             return []
+        ## 频率最高的单元格类型
         max_type = Counter([blockType(str(df.iloc[i, j])) for i in range(
             1, len(df)) for j in range(len(df.iloc[i, :]))])
         max_type = max(max_type.items(), key=lambda x: x[1])[0]
@@ -68,13 +71,14 @@ class RAGFlowDocxParser:
         colnm = len(df.iloc[0, :])
         hdrows = [0]  # header is not nessesarily appear in the first line
         if max_type == "Nu":
+            ## 数值类型，不是数值类型则认为是标题行
             for r in range(1, len(df)):
                 tys = Counter([blockType(str(df.iloc[r, j]))
                               for j in range(len(df.iloc[r, :]))])
                 tys = max(tys.items(), key=lambda x: x[1])[0]
                 if tys != max_type:
                     hdrows.append(r)
-
+        ## 处理标题行和数据行，成带有标题的单元格内容，并用逗号和冒号分隔
         lines = []
         for i in range(1, len(df)):
             if i in hdrows:
@@ -115,6 +119,7 @@ class RAGFlowDocxParser:
             fnm, str) else Document(BytesIO(fnm))
         pn = 0 # parsed page
         secs = [] # parsed contents
+        ## 按段获取docx的内容
         for p in self.doc.paragraphs:
             if pn > to_page:
                 break

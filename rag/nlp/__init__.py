@@ -75,6 +75,7 @@ QUESTION_PATTERN = [
     r"QUESTION ([0-9]+)",
 ]
 
+## 判断当前这个box是否是问题，是的话就更新last_index为当前index
 def has_qbullet(reg, box, last_box, last_index, last_bull, bull_x0_list):
     section, last_section = box['text'], last_box['text']
     q_reg = r'(\w|\W)*?(?:？|\?|\n|$)+'
@@ -237,11 +238,13 @@ def tokenize_chunks(chunks, doc, eng, pdf_parser=None):
         d = copy.deepcopy(doc)
         if pdf_parser:
             try:
+                ## 获取图片
                 d["image"], poss = pdf_parser.crop(ck, need_position=True)
                 add_positions(d, poss)
                 ck = pdf_parser.remove_tag(ck)
             except NotImplementedError as e:
                 pass
+        ## 分词
         tokenize(d, ck, eng)
         res.append(d)
     return res
@@ -297,6 +300,7 @@ def add_positions(d, poss):
         d["position_int"].append((int(pn + 1), int(left), int(right), int(top), int(bottom)))
 
 
+## 删除目录、致谢等
 def remove_contents_table(sections, eng=False):
     i = 0
     while i < len(sections):
@@ -329,9 +333,11 @@ def remove_contents_table(sections, eng=False):
             break
 
 
+## 插入section标题,将冒号结尾的文本标记为标题
 def make_colon_as_title(sections):
     if not sections:
         return []
+    ## 不是(text,type)的格式
     if isinstance(sections[0], type("")):
         return sections
     i = 0
@@ -381,6 +387,7 @@ def not_title(txt):
     return re.search(r"[,;，。；！!]", txt)
 
 
+## 按层次进行归类和合并
 def hierarchical_merge(bull, sections, depth):
     if not sections or bull < 0:
         return []
@@ -500,6 +507,7 @@ def naive_merge(sections, chunk_token_num=128, delimiter="\n。；！？"):
             tk_nums[-1] += tnum
 
     for sec, pos in sections:
+        ## 将切分的段落合并，保证不超过 chunk_token_num
         add_chunk(sec, pos)
         continue
         s, e = 0, 1
@@ -561,6 +569,7 @@ def naive_merge_docx(sections, chunk_token_num=128, delimiter="\n。；！？"):
         nonlocal cks, tk_nums, delimiter
         tnum = num_tokens_from_string(t)
         if tnum < 8:
+            ## 文本很少，不考虑位置信息
             pos = ""
         if tk_nums[-1] > chunk_token_num:
             if t.find(pos) < 0:

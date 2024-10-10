@@ -53,7 +53,7 @@ def chunk(
         msg = BytesParser(policy=policy.default).parse(open(filename, "rb"))
 
     text_txt, html_txt = [], []
-    # get the email header info
+    # 获得email的头信息
     for header, value in msg.items():
         text_txt.append(f"{header}: {value}")
 

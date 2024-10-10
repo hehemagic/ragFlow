@@ -17,6 +17,7 @@ class RAGFlowMarkdownParser:
     def __init__(self, chunk_token_num=128):
         self.chunk_token_num = int(chunk_token_num)
 
+    ## 提取表格和剩余的内容
     def extract_tables_and_remainder(self, markdown_text):
         # Standard Markdown table
         table_pattern = re.compile(

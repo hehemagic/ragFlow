@@ -29,11 +29,13 @@ def chunk(filename, binary, tenant_id, lang, callback=None, **kwargs):
         "docnm_kwd": filename,
         "image": img
     }
+    ## 识别图片文本框和文字
     bxs = ocr(np.array(img))
     txt = "\n".join([t[0] for _, t in bxs if t[0]])
     eng = lang.lower() == "english"
     callback(0.4, "Finish OCR: (%s ...)" % txt[:12])
     if (eng and len(txt.split(" ")) > 32) or len(txt) > 32:
+        ## 文本信息足够，不需要使用CV大模型
         tokenize(doc, txt, eng)
         callback(0.8, "OCR results is too long to use CV LLM.")
         return [doc]

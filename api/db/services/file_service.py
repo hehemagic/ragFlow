@@ -328,6 +328,7 @@ class FileService(CommonService):
     @classmethod
     @DB.connection_context()
     def upload_document(self, kb, file_objs, user_id):
+        ## 文档上传业务处理
         root_folder = self.get_root_folder(user_id)
         pf_id = root_folder["id"]
         self.init_knowledgebase_docs(pf_id, user_id)
@@ -337,10 +338,11 @@ class FileService(CommonService):
         err, files = [], []
         for file in file_objs:
             try:
+                ## 限制用户文件数量
                 MAX_FILE_NUM_PER_USER = int(os.environ.get('MAX_FILE_NUM_PER_USER', 0))
                 if MAX_FILE_NUM_PER_USER > 0 and DocumentService.get_doc_count(kb.tenant_id) >= MAX_FILE_NUM_PER_USER:
                     raise RuntimeError("Exceed the maximum file number of a free user!")
-
+                
                 filename = duplicate_name(
                     DocumentService.query,
                     name=file.filename,

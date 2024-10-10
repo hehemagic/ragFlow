@@ -152,6 +152,7 @@ def build(row):
         row["id"],
         row["from_page"],
         row["to_page"])
+    ## 不同处理方式选择不同的处理器
     chunker = FACTORY[row["parser_id"].lower()]
     try:
         st = timer()
@@ -238,10 +239,12 @@ def init_kb(row):
 
 def embedding(docs, mdl, parser_config={}, callback=None):
     batch_size = 32
+    ## 处理标题和内容
     tts, cnts = [rmSpace(d["title_tks"]) for d in docs if d.get("title_tks")], [
         re.sub(r"</?(table|td|caption|tr|th)( [^<>]{0,12})?>", " ", d["content_with_weight"]) for d in docs]
     tk_count = 0
     if len(tts) == len(cnts):
+        ## 对标题批量编码
         tts_ = np.array([])
         for i in range(0, len(tts), batch_size):
             vts, c = mdl.encode(tts[i: i + batch_size])
@@ -255,6 +258,7 @@ def embedding(docs, mdl, parser_config={}, callback=None):
 
     cnts_ = np.array([])
     for i in range(0, len(cnts), batch_size):
+        ## 对内容编码
         vts, c = mdl.encode(cnts[i: i + batch_size])
         if len(cnts_) == 0:
             cnts_ = vts
@@ -264,6 +268,7 @@ def embedding(docs, mdl, parser_config={}, callback=None):
         callback(prog=0.7 + 0.2 * (i + 1) / len(cnts), msg="")
     cnts = cnts_
 
+    ## 根据权重，融合编码
     title_w = float(parser_config.get("filename_embd_weight", 0.1))
     vects = (title_w * tts + (1 - title_w) *
              cnts) if len(tts) == len(cnts) else cnts
@@ -279,6 +284,7 @@ def run_raptor(row, chat_mdl, embd_mdl, callback=None):
     vts, _ = embd_mdl.encode(["ok"])
     vctr_nm = "q_%d_vec"%len(vts[0])
     chunks = []
+    ## 拿到已经处理好的文档chunks
     for d in retrievaler.chunk_list(row["doc_id"], row["tenant_id"], fields=["content_with_weight", vctr_nm]):
         chunks.append((d["content_with_weight"], np.array(d[vctr_nm])))
 
@@ -291,6 +297,7 @@ def run_raptor(row, chat_mdl, embd_mdl, callback=None):
         row["parser_config"]["raptor"]["threshold"]
     )
     original_length = len(chunks)
+    ## 聚类总结
     raptor(chunks, row["parser_config"]["raptor"]["random_seed"], callback)
     doc = {
         "doc_id": row["doc_id"],
@@ -317,6 +324,7 @@ def run_raptor(row, chat_mdl, embd_mdl, callback=None):
 
 
 def main():
+    ## 拿取任务
     rows = collect()
     if len(rows) == 0:
         return
@@ -340,6 +348,7 @@ def main():
                 continue
         else:
             st = timer()
+            ## 切分，返回docs
             cks = build(r)
             cron_logger.info("Build chunks({}): {}".format(r["name"], timer() - st))
             if cks is None:
@@ -354,6 +363,7 @@ def main():
                     len(cks))
             st = timer()
             try:
+                ## 对切分结果编码，返回token数量
                 tk_count = embedding(cks, embd_mdl, r["parser_config"], callback)
             except Exception as e:
                 callback(-1, "Embedding error:{}".format(str(e)))
@@ -368,6 +378,7 @@ def main():
         es_r = ""
         es_bulk_size = 4
         for b in range(0, len(cks), es_bulk_size):
+            ## 批量插入ES
             es_r = ELASTICSEARCH.bulk(cks[b:b + es_bulk_size], search.index_name(r["tenant_id"]))
             if b % 128 == 0:
                 callback(prog=0.8 + 0.1 * (b + 1) / len(cks), msg="")

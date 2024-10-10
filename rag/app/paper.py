@@ -49,10 +49,11 @@ class Pdf(PdfParser):
         tbls = self._extract_table_figure(True, zoomin, True, True)
         column_width = np.median([b["x1"] - b["x0"] for b in self.boxes])
         self._concat_downward()
+        ## 过滤不需要的Box
         self._filter_forpages()
         callback(0.75, "Text merging finished.")
 
-        # clean mess
+        # 判断是否是两栏布局，两栏布局将boxes按照页数、x和top排序
         if column_width < self.page_images[0].size[0] / zoomin / 2:
             print("two_column...................", column_width,
                   self.page_images[0].size[0] / zoomin / 2)
@@ -64,7 +65,7 @@ class Pdf(PdfParser):
             return re.match(
                 "[0-9. 一、i]*(introduction|abstract|摘要|引言|keywords|key words|关键词|background|背景|目录|前言|contents)",
                 txt.lower().strip())
-
+        ## 不是第一批，不需要处理标题等信息
         if from_page > 0:
             return {
                 "title": "",
@@ -74,7 +75,7 @@ class Pdf(PdfParser):
                              re.match(r"(text|title)", b.get("layoutno", "text"))],
                 "tables": tbls
             }
-        # get title and authors
+        # 获取paper标题和作者
         title = ""
         authors = []
         i = 0
@@ -92,7 +93,7 @@ class Pdf(PdfParser):
                     authors.append(self.boxes[i + j]["text"])
                     break
                 break
-        # get abstract
+        # 获取摘要
         abstr = ""
         i = 0
         while i + 1 < min(32, len(self.boxes)):
@@ -177,11 +178,14 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
     sorted_sections = paper["sections"]
     # set pivot using the most frequent type of title,
     # then merge between 2 pivot
+    ## 该文章的章节标题格式
     bull = bullets_category([txt for txt, _ in sorted_sections])
+    ## 最常出现的章节层级和所有section的层级
     most_level, levels = title_frequency(bull, sorted_sections)
     assert len(sorted_sections) == len(levels)
     sec_ids = []
     sid = 0
+    ## 按层级划分为多个部分
     for i, lvl in enumerate(levels):
         if lvl <= most_level and i > 0 and lvl != levels[i - 1]:
             sid += 1
@@ -190,6 +194,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
 
     chunks = []
     last_sid = -2
+    ## 将相同部分的文章内容合并
     for (txt, _), sec_id in zip(sorted_sections, sec_ids):
         if sec_id == last_sid:
             if chunks:
@@ -197,6 +202,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
                 continue
         chunks.append(txt)
         last_sid = sec_id
+    ## 对合并后的内容分词
     res.extend(tokenize_chunks(chunks, doc, eng, pdf_parser))
     return res
 

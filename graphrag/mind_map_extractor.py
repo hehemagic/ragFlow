@@ -95,12 +95,14 @@ class MindMapExtractor:
             for i in range(len(sections)):
                 section_cnt = num_tokens_from_string(sections[i])
                 if cnt + section_cnt >= token_count and texts:
+                    ## 批量处理chunk
                     threads.append(exe.submit(self._process_document, "".join(texts), prompt_variables))
                     texts = []
                     cnt = 0
                 texts.append(sections[i])
                 cnt += section_cnt
             if texts:
+                ## 处理最后一批chunk
                 threads.append(exe.submit(self._process_document, "".join(texts), prompt_variables))
 
             for i, _ in enumerate(threads):
@@ -108,9 +110,10 @@ class MindMapExtractor:
 
             if not res:
                 return MindMapResult(output={"root":{}})
-
+            ## 合并输出的思维导图json
             merge_json = reduce(self._merge, res)
             if len(merge_json.keys()) > 1:
+                ## 如果有多个根节点，需要合并
                 keyset = set(
                     [re.sub(r"\*+", "", k) for k, v in merge_json.items() if isinstance(v, dict) and re.sub(r"\*+", "", k)])
                 merge_json = {"id": "root",
@@ -129,8 +132,8 @@ class MindMapExtractor:
             merge_json = {"error": str(e)}
 
         return MindMapResult(output=merge_json)
-
     def _merge(self, d1, d2):
+
         for k in d1:
             if k in d2:
                 if isinstance(d1[k], dict) and isinstance(d2[k], dict):
@@ -181,6 +184,7 @@ class MindMapExtractor:
         text = perform_variable_replacements(self._mind_map_prompt, variables=variables)
         gen_conf = {"temperature": 0.5}
         response = self._llm.chat(text, [{"role": "user", "content": "Output:"}], gen_conf)
+        ## 去除代码标识
         response = re.sub(r"```[^\n]*", "", response)
         print(response)
         print("---------------------------------------------------\n", self._todict(markdown_to_json.dictify(response)))

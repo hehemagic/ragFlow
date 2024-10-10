@@ -18,7 +18,7 @@ class Generation(BaseDoc):
 tokenizer = None
 model_name = ""
 
-
+## 适配云原生jina部署
 class TokenStreamingExecutor(Executor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

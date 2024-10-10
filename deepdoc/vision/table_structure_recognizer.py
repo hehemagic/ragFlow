@@ -46,7 +46,7 @@ class TableStructureRecognizer(Recognizer):
     def __call__(self, images, thr=0.2):
         tbls = super().__call__(images, thr)
         res = []
-        # align left&right for rows, align top&bottom for columns
+        # 对行和列进行边界调整，对表格元素进行左、右、上、下对齐，确保表格中的元素布局更整齐和一致。
         for tbl in tbls:
             lts = [{"label": b["type"],
                     "score": b["score"],
@@ -130,6 +130,7 @@ class TableStructureRecognizer(Recognizer):
         return "Ot"
 
     @staticmethod
+    ## 分析和组织文本框，最终将其构造成html或者文字描述的结果
     def construct_table(boxes, is_english=False, html=False):
         cap = ""
         i = 0
@@ -394,6 +395,7 @@ class TableStructureRecognizer(Recognizer):
         return html
 
     @staticmethod
+    ## 表格生成文字描述
     def __desc_table(cap, hdr_rowno, tbl, is_english):
         # get text of every colomn in header row to become header text
         clmno = len(tbl[0])

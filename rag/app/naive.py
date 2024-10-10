@@ -10,7 +10,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from tika import parser
+# from tika import parser
 from io import BytesIO
 from docx import Document
 from timeit import default_timer as timer
@@ -78,11 +78,13 @@ class Docx(DocxParser):
                             last_image = None
                         lines.append((self.__clean(p.text), image_list, p.style.name))
                 else:
+                    ## 空段落就获取图片，放在下一个段落使用
                     if current_image := self.get_picture(self.doc, p):
                         if lines:
                             lines[-1][1].append(current_image)
                         else:
                             last_image = current_image
+            ## 页码处理
             for run in p.runs:
                 if 'lastRenderedPageBreak' in run._element.xml:
                     pn += 1
@@ -117,6 +119,7 @@ class Pdf(PdfParser):
                  to_page=100000, zoomin=3, callback=None):
         start = timer()
         callback(msg="OCR is running...")
+        ## 处理pdf每一页的内容，使用OCR识别出文本框
         self.__images__(
             filename if not binary else binary,
             zoomin,
@@ -128,14 +131,19 @@ class Pdf(PdfParser):
         cron_logger.info("OCR({}~{}): {}".format(from_page, to_page, timer() - start))
 
         start = timer()
+        ## 布局识别，结果放入了boxes
         self._layouts_rec(zoomin)
         callback(0.63, "Layout analysis finished.")
+        ## 处理表格，为表格box添加额外信息
         self._table_transformer_job(zoomin)
         callback(0.65, "Table analysis finished.")
+        ## 文本水平，不合并表格、图片、公式
         self._text_merge()
         callback(0.67, "Text merging finished")
+        ## 处理图片和表格，
         tbls = self._extract_table_figure(True, zoomin, True, True)
         #self._naive_vertical_merge()
+        ## 合并文本
         self._concat_downward()
         #self._filter_forpages()
 
@@ -154,11 +162,13 @@ class Markdown(MarkdownParser):
         else:
             with open(filename, "r") as f:
                 txt = f.read()
+        ## 提取表格和剩余内容
         remainder, tables = self.extract_tables_and_remainder(f'{txt}\n')
         sections = []
         tbls = []
         for sec in remainder.split("\n"):
             if num_tokens_from_string(sec) > 10 * self.chunk_token_num:
+                ## 超过10*chunk_token_num，则分半
                 sections.append((sec[:int(len(sec)/2)], ""))
                 sections.append((sec[int(len(sec)/2):], ""))
             else:
@@ -193,12 +203,15 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
     sections = []
     if re.search(r"\.docx$", filename, re.IGNORECASE):
         callback(0.1, "Start to parse.")
+        # sections包含文字和图片
         sections, tbls = Docx()(filename, binary)
+        ## 对表格内容分词，变为文档对象
         res = tokenize_table(tbls, doc, eng)    # just for table
 
         callback(0.8, "Finish parsing.")
         st = timer()
 
+        ## 根据chunk大小处理每一段
         chunks, images = naive_merge_docx(
             sections, int(parser_config.get(
                 "chunk_token_num", 128)), parser_config.get(
@@ -206,7 +219,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
 
         if kwargs.get("section_only", False):
             return chunks
-
+        ## 对文本内容进行分词处理
         res.extend(tokenize_chunks_docx(chunks, doc, eng, images))
         cron_logger.info("naive_merge({}): {}".format(filename, timer() - st))
         return res
@@ -261,6 +274,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
             "file type not supported yet(pdf, xlsx, doc, docx, txt supported)")
 
     st = timer()
+    ## 合并section
     chunks = naive_merge(
         sections, int(parser_config.get(
             "chunk_token_num", 128)), parser_config.get(
@@ -279,4 +293,4 @@ if __name__ == "__main__":
     def dummy(prog=None, msg=""):
         pass
 
-    chunk(sys.argv[1], from_page=0, to_page=10, callback=dummy)
+    chunk("/data/wangkaixuan/wangkaixuan/gitee/ragflow/安全检查制度.pdf", from_page=0, to_page=10, callback=dummy)

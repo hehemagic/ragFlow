@@ -18,6 +18,7 @@ class RAGFlowTxtParser:
     def __call__(self, fnm, binary=None, chunk_token_num=128, delimiter="\n!?;。；！？"):
         txt = ""
         if binary:
+            ## 对应编码格式
             encoding = find_codec(binary)
             txt = binary.decode(encoding, errors="ignore")
         else:
@@ -30,6 +31,7 @@ class RAGFlowTxtParser:
         return self.parser_txt(txt, chunk_token_num, delimiter)
 
     @classmethod
+    ## 按照分隔符简单切分
     def parser_txt(cls, txt, chunk_token_num=128, delimiter="\n!?;。；！？"):
         if type(txt) != str:
             raise TypeError("txt type should be str!")

@@ -32,6 +32,7 @@ class RAGFlowHtmlParser:
                 txt = f.read()
         return self.parser_txt(txt)
 
+    ## 使用工具提取html的正文和标题
     @classmethod
     def parser_txt(cls, txt):
         if type(txt) != str:

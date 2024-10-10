@@ -152,6 +152,7 @@ class Recognizer(object):
         return ov
 
     @staticmethod
+    ## 清理筛选布局，减少重叠的布局元素，并保留得分更高或与其他元素重叠面积更大的布局
     def layouts_cleanup(boxes, layouts, far=2, thr=0.7):
         def notOverlapped(a, b):
             return any([a["x1"] < b["x0"],
@@ -236,6 +237,7 @@ class Recognizer(object):
         return inputs
 
     @staticmethod
+    ## 寻找重叠面积最大的box
     def find_overlapped(box, boxes_sorted_by_y, naive=False):
         if not boxes_sorted_by_y:
             return
@@ -284,6 +286,7 @@ class Recognizer(object):
         return min_i
 
     @staticmethod
+    ## 寻找重叠度最大的box
     def find_overlapped_with_threashold(box, boxes, thr=0.3):
         if not boxes:
             return
@@ -438,9 +441,11 @@ class Recognizer(object):
             start_index = i * batch_size
             end_index = min((i + 1) * batch_size, len(imgs))
             batch_image_list = imgs[start_index:end_index]
+            ## 图片预处理
             inputs = self.preprocess(batch_image_list)
             print("preprocess")
             for ins in inputs:
+                ## 识别结果后处理
                 bb = self.postprocess(self.ort_sess.run(None, {k:v for k,v in ins.items() if k in self.input_names})[0], ins, thr)
                 res.append(bb)
 

@@ -55,14 +55,17 @@ class Docx(DocxParser):
             filename) if not binary else Document(BytesIO(binary))
         pn = 0
         lines = []
+        ## 获得最可能的层次结构
         bull = bullets_category([p.text for p in self.doc.paragraphs])
         for p in self.doc.paragraphs:
             if pn > to_page:
                 break
+            ## 获取内容的层次和内容
             question_level, p_text = docx_question_level(p, bull)
             if not p_text.strip("\n"):continue
             lines.append((question_level, p_text))
 
+            ## 处理分页符
             for run in p.runs:
                 if 'lastRenderedPageBreak' in run._element.xml:
                     pn += 1
@@ -72,12 +75,14 @@ class Docx(DocxParser):
 
         visit = [False for _ in range(len(lines))]
         sections = []
+        ## 提取和组织层级结构
         for s in range(len(lines)):
             e = s + 1
             while e < len(lines):
                 if lines[e][0] <= lines[s][0]:
                     break
                 e += 1
+            ## s访问过或者没有找到层级比s更深的
             if e - s == 1 and visit[s]: continue
             sec = []
             next_level = lines[s][0] + 1
@@ -124,7 +129,7 @@ class Pdf(PdfParser):
         callback(0.67, "Layout analysis finished")
         cron_logger.info("layouts:".format(
             (timer() - start) / (self.total_page + 0.1)))
-        self._naive_vertical_merge()
+        self.naive_vertical_merge()
 
         callback(0.8, "Text extraction finished")
 

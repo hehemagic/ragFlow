@@ -49,10 +49,11 @@ class KGSearch(Dealer):
                                  ])
 
         qst = req.get("question", "")
+        ## 构建原始查询条件
         binary_query, keywords = self.qryr.question(qst, min_match="5%")
         binary_query = self._add_filters(binary_query, req)
 
-        ## Entity retrieval
+        ## 构建实体查询条件，限制最多32个实体
         bqry = deepcopy(binary_query)
         bqry.filter.append(Q("terms", knowledge_graph_kwd=["entity"]))
         s = Search()
@@ -61,21 +62,24 @@ class KGSearch(Dealer):
         s = s.to_dict()
         q_vec = []
         if req.get("vector"):
+            ## 构建向量查询条件
             assert emb_mdl, "No embedding model selected"
             s["knn"] = self._vector(
                 qst, emb_mdl, req.get(
                     "similarity", 0.1), 1024)
             s["knn"]["filter"] = bqry.to_dict()
             q_vec = s["knn"]["query_vector"]
-
+        ## 执行查询
         ent_res = self.es.search(deepcopy(s), idxnm=idxnm, timeout="600s", src=src)
         entities = [d["name_kwd"] for d in self.es.getSource(ent_res)]
         ent_ids = self.es.getDocIds(ent_res)
+        ## 合并实体查询结果，放在第一个搜索结果中
         if merge_into_first(ent_res, "-Entities-"):
             ent_ids = ent_ids[0:1]
 
-        ## Community retrieval
+        ## 社区召回
         bqry = deepcopy(binary_query)
+        ## 在指定的实体中，召回社区描述
         bqry.filter.append(Q("terms", entities_kwd=entities))
         bqry.filter.append(Q("terms", knowledge_graph_kwd=["community_report"]))
         s = Search()
@@ -86,7 +90,7 @@ class KGSearch(Dealer):
         if merge_into_first(comm_res, "-Community Report-"):
             comm_ids = comm_ids[0:1]
 
-        ## Text content retrieval
+        ## 原始文本召回
         bqry = deepcopy(binary_query)
         bqry.filter.append(Q("terms", knowledge_graph_kwd=["text"]))
         s = Search()
@@ -96,7 +100,7 @@ class KGSearch(Dealer):
         txt_ids = self.es.getDocIds(txt_res)
         if merge_into_first(txt_res, "-Original Content-"):
             txt_ids = txt_ids[0:1]
-
+        ## 后处理召回数据
         return self.SearchResult(
             total=len(ent_ids) + len(comm_ids) + len(txt_ids),
             ids=[*ent_ids, *comm_ids, *txt_ids],

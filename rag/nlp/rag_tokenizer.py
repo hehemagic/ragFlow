@@ -258,13 +258,16 @@ class RagTokenizer:
     def english_normalize_(self, tks):
         return [self.stemmer.stem(self.lemmatizer.lemmatize(t)) if re.match(r"[a-zA-Z_-]+$", t) else t for t in tks]
 
+    ## 分词和标准化处理
     def tokenize(self, line):
+        ## 全角字符转换为半角字符
         line = self._strQ2B(line).lower()
+        ## 繁体转简体
         line = self._tradi2simp(line)
         zh_num = len([1 for c in line if is_chinese(c)])
         if zh_num == 0:
             return " ".join([self.stemmer.stem(self.lemmatizer.lemmatize(t)) for t in word_tokenize(line)])
-
+        ## 分段
         arr = re.split(self.SPLIT_CHAR, line)
         res = []
         for L in arr:
@@ -315,6 +318,7 @@ class RagTokenizer:
             print("[TKS]", self.merge_(res))
         return self.merge_(res)
 
+    ## 细化分词
     def fine_grained_tokenize(self, tks):
         tks = tks.split(" ")
         zh_num = len([1 for c in tks if c and is_chinese(c[0])])

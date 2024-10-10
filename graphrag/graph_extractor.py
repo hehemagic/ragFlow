@@ -78,6 +78,7 @@ class GraphExtractor:
         )
         self._entity_types_key = entity_types_key or "entity_types"
         self._extraction_prompt = prompt or GRAPH_EXTRACTION_PROMPT
+        ## 最多提取次数
         self._max_gleanings = (
             max_gleanings
             if max_gleanings is not None
@@ -103,7 +104,7 @@ class GraphExtractor:
         all_records: dict[int, str] = {}
         source_doc_map: dict[int, str] = {}
 
-        # Wire defaults into the prompt variables
+        # 填充图提取prompt
         prompt_variables = {
             **prompt_variables,
             self._tuple_delimiter_key: prompt_variables.get(self._tuple_delimiter_key)
@@ -141,7 +142,7 @@ class GraphExtractor:
                         "text": text,
                     },
                 )
-
+        ## 根据大模型回答格式，后处理文本为图
         output = self._process_results(
             all_records,
             prompt_variables.get(self._tuple_delimiter_key, DEFAULT_TUPLE_DELIMITER),
@@ -161,6 +162,7 @@ class GraphExtractor:
             self._input_text_key: text,
         }
         token_count = 0
+        ## 填充prompt
         text = perform_variable_replacements(self._extraction_prompt, variables=variables)
         gen_conf = {"temperature": 0.3}
         response = self._llm.chat(text, [{"role": "user", "content": "Output:"}], gen_conf)
@@ -169,7 +171,7 @@ class GraphExtractor:
         results = response or ""
         history = [{"role": "system", "content": text}, {"role": "assistant", "content": response}]
 
-        # Repeat to ensure we maximize entity count
+        # 重复提取实体
         for i in range(self._max_gleanings):
             text = perform_variable_replacements(CONTINUE_PROMPT, history=history, variables=variables)
             history.append({"role": "user", "content": text})
@@ -182,6 +184,7 @@ class GraphExtractor:
                 break
             history.append({"role": "assistant", "content": response})
             history.append({"role": "user", "content": LOOP_PROMPT})
+            ## 判断是否需要继续提取实体
             continuation = self._llm.chat("", history, self._loop_args)
             if continuation != "YES":
                 break
@@ -208,9 +211,11 @@ class GraphExtractor:
             records = [r.strip() for r in extracted_data.split(record_delimiter)]
 
             for record in records:
+                ## 删除前后括号，提取内容
                 record = re.sub(r"^\(|\)$", "", record.strip())
                 record_attributes = record.split(tuple_delimiter)
 
+                ## 处理实体
                 if record_attributes[0] == '"entity"' and len(record_attributes) >= 4:
                     # add this record as a node in the G
                     entity_name = clean_str(record_attributes[1].upper())
@@ -218,8 +223,10 @@ class GraphExtractor:
                     entity_description = clean_str(record_attributes[3])
 
                     if entity_name in graph.nodes():
+                        ## 已有该节点
                         node = graph.nodes[entity_name]
                         if self._join_descriptions:
+                            ## 合并节点描述
                             node["description"] = "\n".join(
                                 list({
                                     *_unpack_descriptions(node),
@@ -228,6 +235,7 @@ class GraphExtractor:
                             )
                         else:
                             if len(entity_description) > len(node["description"]):
+                                ## 替换为更详细的描述
                                 node["description"] = entity_description
                         node["source_id"] = ", ".join(
                             list({
@@ -235,10 +243,12 @@ class GraphExtractor:
                                 str(source_doc_id),
                             })
                         )
+                        ## 替换类型
                         node["entity_type"] = (
                             entity_type if entity_type != "" else node["entity_type"]
                         )
                     else:
+                        ## 新增节点
                         graph.add_node(
                             entity_name,
                             entity_type=entity_type,
@@ -247,6 +257,7 @@ class GraphExtractor:
                             weight=1
                         )
 
+                ## 处理关系
                 if (
                     record_attributes[0] == '"relationship"'
                     and len(record_attributes) >= 5
@@ -278,8 +289,10 @@ class GraphExtractor:
                             weight=1
                         )
                     if graph.has_edge(source, target):
+                        ## 如果已经有关系了
                         edge_data = graph.get_edge_data(source, target)
                         if edge_data is not None:
+                            ## 增加权重
                             weight += edge_data["weight"]
                             if self._join_descriptions:
                                 edge_description = "\n".join(
@@ -303,6 +316,7 @@ class GraphExtractor:
                     )
 
         for node_degree in graph.degree:
+            ## rank属性为节点的度
             graph.nodes[str(node_degree[0])]["rank"] = int(node_degree[1])
         return graph
 

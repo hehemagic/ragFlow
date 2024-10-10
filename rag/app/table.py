@@ -41,6 +41,7 @@ class Excel(ExcelParser):
             ws = wb[sheetname]
             rows = list(ws.rows)
             if not rows:continue
+            ## 解析表头
             headers = [cell.value for cell in rows[0]]
             missed = set([i for i, h in enumerate(headers) if h is None])
             headers = [
@@ -50,6 +51,7 @@ class Excel(ExcelParser):
             if not headers:continue
             data = []
             for i, r in enumerate(rows[1:]):
+                ## 获取单元格内容
                 rn += 1
                 if rn - 1 < from_page:
                     continue
@@ -85,6 +87,7 @@ def trans_bool(s):
         return "no"
 
 
+## 列数据类型
 def column_data_type(arr):
     arr = list(arr)
     uni = len(set([a for a in arr if a is not None]))
@@ -193,9 +196,11 @@ def chunk(filename, binary=None, from_page=0, to_page=10000000000,
     for df in dfs:
         for n in ["id", "_id", "index", "idx"]:
             if n in df.columns:
+                ## 删除id内部标识
                 del df[n]
         clmns = df.columns.values
         txts = list(copy.deepcopy(clmns))
+        ## 生成拼音
         py_clmns = [
             PY.get_pinyins(
                 re.sub(
@@ -205,16 +210,19 @@ def chunk(filename, binary=None, from_page=0, to_page=10000000000,
                 '_')[0] for n in clmns]
         clmn_tys = []
         for j in range(len(clmns)):
+            ## 检测列的数据类型
             cln, ty = column_data_type(df[clmns[j]])
             clmn_tys.append(ty)
             df[clmns[j]] = cln
             if ty == "text":
                 txts.extend([str(c) for c in cln if c])
+        ## 生成字段映射，加上类型
         clmns_map = [(py_clmns[i].lower() + fieds_map[clmn_tys[i]], str(clmns[i]).replace("_", " "))
                      for i in range(len(clmns))]
 
         eng = lang.lower() == "english"  # is_english(txts)
         for ii, row in df.iterrows():
+            ## 文件名分词
             d = {
                 "docnm_kwd": filename,
                 "title_tks": rag_tokenizer.tokenize(re.sub(r"\.[a-zA-Z]+$", "", filename))
@@ -228,14 +236,16 @@ def chunk(filename, binary=None, from_page=0, to_page=10000000000,
                 if pd.isna(row[clmns[j]]):
                     continue
                 fld = clmns_map[j][0]
+                ## 如果是text就分词，其他的不管
                 d[fld] = row[clmns[j]] if clmn_tys[j] != "text" else rag_tokenizer.tokenize(
                     row[clmns[j]])
                 row_txt.append("{}:{}".format(clmns[j], row[clmns[j]]))
             if not row_txt:
                 continue
+            ## 对整行数据进行分词
             tokenize(d, "; ".join(row_txt), eng)
             res.append(d)
-
+        ## 更新解析器字段映射
         KnowledgebaseService.update_parser_config(
             kwargs["kb_id"], {"field_map": {k: v for k, v in clmns_map}})
     callback(0.35, "")

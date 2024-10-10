@@ -38,9 +38,12 @@ class RAGFlowPdfParser:
     def __init__(self):
         self.ocr = OCR()
         if hasattr(self, "model_speciess"):
+            ## layout.xxx.onnx
             self.layouter = LayoutRecognizer("layout." + self.model_speciess)
         else:
+            ## layout.onnx
             self.layouter = LayoutRecognizer("layout")
+        ## tsr.onnx
         self.tbl_det = TableStructureRecognizer()
 
         self.updown_cnt_mdl = xgb.Booster()
@@ -50,6 +53,7 @@ class RAGFlowPdfParser:
             model_dir = os.path.join(
                 get_project_base_directory(),
                 "rag/res/deepdoc")
+            ## updown_concat_xgb.model
             self.updown_cnt_mdl.load_model(os.path.join(
                 model_dir, "updown_concat_xgb.model"))
         except Exception as e:
@@ -189,11 +193,13 @@ class RAGFlowPdfParser:
         self.tb_cpns = []
         assert len(self.page_layout) == len(self.page_images)
         for p, tbls in enumerate(self.page_layout):  # for page
+            ## 处理每一页的table
             tbls = [f for f in tbls if f["type"] == "table"]
             tbcnt.append(len(tbls))
             if not tbls:
                 continue
             for tb in tbls:  # for table
+                ## 裁剪表格图片
                 left, top, right, bott = tb["x0"] - MARGIN, tb["top"] - MARGIN, \
                                          tb["x1"] + MARGIN, tb["bottom"] + MARGIN
                 left *= ZM
@@ -206,8 +212,10 @@ class RAGFlowPdfParser:
         assert len(self.page_images) == len(tbcnt) - 1
         if not imgs:
             return
+        ## 识别表格结构，并对齐识别后的结果
         recos = self.tbl_det(imgs)
         tbcnt = np.cumsum(tbcnt)
+        ## 整合每一页的表格
         for i in range(len(tbcnt) - 1):  # for page
             pg = []
             for j, tb_items in enumerate(
@@ -228,12 +236,13 @@ class RAGFlowPdfParser:
             self.tb_cpns.extend(pg)
 
         def gather(kwd, fzy=10, ption=0.6):
+            ## 收集对应标签的内容，并按照Y轴排序
             eles = Recognizer.sort_Y_firstly(
                 [r for r in self.tb_cpns if re.match(kwd, r["label"])], fzy)
             eles = Recognizer.layouts_cleanup(self.boxes, eles, 5, ption)
             return Recognizer.sort_Y_firstly(eles, 0)
 
-        # add R,H,C,SP tag to boxes within table layout
+        # 为表格box添加额外信息
         headers = gather(r".*header$")
         rows = gather(r".* (row|header)")
         spans = gather(r".*spanning")
@@ -273,11 +282,13 @@ class RAGFlowPdfParser:
                 b["SP"] = ii
 
     def __ocr(self, pagenum, img, chars, ZM=3):
+        ## 获得文本boxes
         bxs = self.ocr.detect(np.array(img))
         if not bxs:
             self.boxes.append([])
             return
         bxs = [(line[0], line[1][0]) for line in bxs]
+        ## 将boxes先按Y轴排序，再按X轴排序
         bxs = Recognizer.sort_Y_firstly(
             [{"x0": b[0][0] / ZM, "x1": b[1][0] / ZM,
               "top": b[0][1] / ZM, "text": "", "txt": t,
@@ -286,7 +297,7 @@ class RAGFlowPdfParser:
             self.mean_height[-1] / 3
         )
         
-        # merge chars in the same rect
+        # 合并相同Boxes中的字符
         for c in Recognizer.sort_Y_firstly(
                 chars, self.mean_height[pagenum - 1] // 4):
             ii = Recognizer.find_overlapped(c, bxs)
@@ -306,6 +317,7 @@ class RAGFlowPdfParser:
 
         for b in bxs:
             if not b["text"]:
+                ## 没有文本的文本框或无法直接获取的字符，进行文本识别
                 left, right, top, bott = b["x0"] * ZM, b["x1"] * \
                                          ZM, b["top"] * ZM, b["bottom"] * ZM
                 b["text"] = self.ocr.recognize(np.array(img),
@@ -320,6 +332,7 @@ class RAGFlowPdfParser:
 
     def _layouts_rec(self, ZM, drop=True):
         assert len(self.page_images) == len(self.boxes)
+        ## 布局识别，将布局识别的结果标记到boxes中，将没有文字的或公式的box标记为figure
         self.boxes, self.page_layout = self.layouter(
             self.page_images, self.boxes, ZM, drop=drop)
         # cumlative Y
@@ -342,7 +355,7 @@ class RAGFlowPdfParser:
             tt = b.get("text", "").strip()
             return tt and any([tt.find(t.strip()) == 0 for t in txts])
 
-        # horizontally merge adjacent box with the same layout
+        # 水平合并相同布局的box
         i = 0
         while i < len(bxs) - 1:
             b = bxs[i]
@@ -353,7 +366,7 @@ class RAGFlowPdfParser:
                 continue
             if abs(self._y_dis(b, b_)
                    ) < self.mean_height[bxs[i]["page_number"] - 1] / 3:
-                # merge
+                # Y轴距离满足条件则合并
                 bxs[i]["x1"] = b_["x1"]
                 bxs[i]["top"] = (b["top"] + b_["top"]) / 2
                 bxs[i]["bottom"] = (b["bottom"] + b_["bottom"]) / 2
@@ -385,7 +398,8 @@ class RAGFlowPdfParser:
             i += 1
         self.boxes = bxs
 
-    def _naive_vertical_merge(self):
+    ## 按照制定规则，垂直方向合并
+    def naive_vertical_merge(self):
         bxs = Recognizer.sort_Y_firstly(
             self.boxes, np.median(
                 self.mean_height) / 3)
@@ -395,6 +409,7 @@ class RAGFlowPdfParser:
             b_ = bxs[i + 1]
             if b["page_number"] < b_["page_number"] and re.match(
                     r"[0-9  •一—-]+$", b["text"]):
+                ## 删除页码信息
                 bxs.pop(i)
                 continue
             if not b["text"].strip():
@@ -436,8 +451,9 @@ class RAGFlowPdfParser:
             bxs.pop(i + 1)
         self.boxes = bxs
 
+    ## 文本框进行处理和合并
     def _concat_downward(self, concat_between_pages=True):
-        # count boxes in the same row as a feature
+        # 计算在同一行的文本框的数量，最多12个，作为xbg的feature
         for i in range(len(self.boxes)):
             mh = self.mean_height[self.boxes[i]["page_number"] - 1]
             self.boxes[i]["in_row"] = 0
@@ -457,6 +473,7 @@ class RAGFlowPdfParser:
         boxes = deepcopy(self.boxes)
         blocks = []
         while boxes:
+            ## 使用dfs将符合合并条件的box都放在同一个chunks里面
             chunks = []
 
             def dfs(up, dp):
@@ -503,7 +520,7 @@ class RAGFlowPdfParser:
                             return
                         i += 1
                         continue
-
+                    ## 生成文本的feature，使用xgb判断是否可以合并
                     fea = self._updown_concat_features(up, down)
                     if self.updown_cnt_mdl.predict(
                             xgb.DMatrix([fea]))[0] <= 0.5:
@@ -518,7 +535,7 @@ class RAGFlowPdfParser:
             if chunks:
                 blocks.append(chunks)
 
-        # concat within each block
+        # 合并blocks中的chunks
         boxes = []
         for b in blocks:
             if len(b) == 1:
@@ -555,11 +572,14 @@ class RAGFlowPdfParser:
                             re.sub(r"( | |\u3000)+", "", self.boxes[i]["text"].lower())):
                 i += 1
                 continue
+            ## 匹配到 contents等内容
             findit = True
+            ## 是否是英文
             eng = re.match(
                 r"[0-9a-zA-Z :'.-]{5,}",
                 self.boxes[i]["text"].strip())
             self.boxes.pop(i)
+            ## 清除前缀空白的box
             if i >= len(self.boxes):
                 break
             prefix = self.boxes[i]["text"].strip()[:3] if not eng else " ".join(
@@ -573,6 +593,7 @@ class RAGFlowPdfParser:
             self.boxes.pop(i)
             if i >= len(self.boxes) or not prefix:
                 break
+            ## 删除相同具有相同前缀的box
             for j in range(i, min(i + 128, len(self.boxes))):
                 if not re.match(prefix, self.boxes[j]["text"]):
                     continue
@@ -581,7 +602,7 @@ class RAGFlowPdfParser:
                 break
         if findit:
             return
-
+        ## 寻找box污点（出现超过三次..），删除污点页面
         page_dirty = [0] * len(self.page_images)
         for b in self.boxes:
             if re.search(r"(··|··|··)", b["text"]):
@@ -596,6 +617,7 @@ class RAGFlowPdfParser:
                 continue
             i += 1
 
+    ## 合并相同符号的文本框
     def _merge_with_same_bullet(self):
         i = 0
         while i + 1 < len(self.boxes):
@@ -607,7 +629,7 @@ class RAGFlowPdfParser:
             if not b_["text"].strip():
                 self.boxes.pop(i + 1)
                 continue
-
+            ## 列表数据一般第一个字符相同
             if b["text"].strip()[0] != b_["text"].strip()[0] \
                     or b["text"].strip()[0].lower() in set("qwertyuopasdfghjklzxcvbnm") \
                     or rag_tokenizer.is_chinese(b["text"].strip()[0]) \
@@ -638,8 +660,10 @@ class RAGFlowPdfParser:
                                                                                                       "title",
                                                                                                       "figure caption",
                                                                                                       "reference"]:
+                ## 遇到标题则代表不需要合并了
                 nomerge_lout_no.append(lst_lout_no)
             if self.boxes[i]["layout_type"] == "table":
+                ## 处理表格box
                 if re.match(r"(数据|资料|图表)*来源[:： ]", self.boxes[i]["text"]):
                     self.boxes.pop(i)
                     continue
@@ -650,6 +674,7 @@ class RAGFlowPdfParser:
                 lst_lout_no = lout_no
                 continue
             if need_image and self.boxes[i]["layout_type"] == "figure":
+                ## 处理图片box
                 if re.match(r"(数据|资料|图表)*来源[:： ]", self.boxes[i]["text"]):
                     self.boxes.pop(i)
                     continue
@@ -661,7 +686,7 @@ class RAGFlowPdfParser:
                 continue
             i += 1
 
-        # merge table on different pages
+        # 合并不同页的表格，满足上一个表格的最后一个box和当前表格的第一个box之间Y轴距离小于阈值
         nomerge_lout_no = set(nomerge_lout_no)
         tbls = sorted([(k, bxs) for k, bxs in tables.items()],
                       key=lambda x: (x[1][0]["top"], x[1][0]["x0"]))
@@ -686,7 +711,7 @@ class RAGFlowPdfParser:
         def x_overlapped(a, b):
             return not any([a["x1"] < b["x0"], a["x0"] > b["x1"]])
 
-        # find captions and pop out
+        # 处理图标标题
         i = 0
         while i < len(self.boxes):
             c = self.boxes[i]
@@ -719,6 +744,7 @@ class RAGFlowPdfParser:
             # if min(tv, fv) > 2000:
             #    i += 1
             #    continue
+            ## 将标题添加到对应图表中
             if tv < fv and tk:
                 tables[tk].insert(0, c)
                 logging.debug(
@@ -766,6 +792,7 @@ class RAGFlowPdfParser:
                 return self.page_images[pn] \
                     .crop((left * ZM, top * ZM,
                            right * ZM, bott * ZM))
+            ## 多页裁剪，先单页裁剪再拼接
             pn = {}
             for b in bxs:
                 p = b["page_number"] - 1
@@ -784,7 +811,7 @@ class RAGFlowPdfParser:
                 height += img.size[1]
             return pic
 
-        # crop figure out and add caption
+        # 裁剪图片，添加内容
         for k, bxs in figures.items():
             txt = "\n".join([b["text"] for b in bxs])
             if not txt:
@@ -950,14 +977,17 @@ class RAGFlowPdfParser:
         try:
             self.pdf = pdfplumber.open(fnm) if isinstance(
                 fnm, str) else pdfplumber.open(BytesIO(fnm))
+            ## 将每一页PDF都变为图片
             self.page_images = [p.to_image(resolution=72 * zoomin).annotated for i, p in
                                 enumerate(self.pdf.pages[page_from:page_to])]
+            ## 获取页面中的字符
             self.page_chars = [[{**c, 'top': c['top'], 'bottom': c['bottom']} for c in page.dedupe_chars().chars if self._has_color(c)] for page in
                                self.pdf.pages[page_from:page_to]]
             self.total_page = len(self.pdf.pages)
         except Exception as e:
             logging.error(str(e))
 
+        ## 获取大纲信息，存储为(标题，depth)
         self.outlines = []
         try:
             self.pdf = pdf2_read(fnm if isinstance(fnm, str) else BytesIO(fnm))
@@ -977,9 +1007,11 @@ class RAGFlowPdfParser:
             logging.warning(f"Miss outlines")
 
         logging.info("Images converted.")
+        ## 页面中100个字符中包含至少30个连续的英文字母、数字等，则认定为英文页面
         self.is_english = [re.search(r"[a-zA-Z0-9,/¸;:'\[\]\(\)!@#$%^&*\"?<>._-]{30,}", "".join(
             random.choices([c["text"] for c in self.page_chars[i]], k=min(100, len(self.page_chars[i]))))) for i in
                            range(len(self.page_chars))]
+        ## 超过一半的页面为英文则认定文档为英文
         if sum([1 if e else 0 for e in self.is_english]) > len(
                 self.page_images) / 2:
             self.is_english = True
@@ -988,6 +1020,7 @@ class RAGFlowPdfParser:
 
         st = timer()
         for i, img in enumerate(self.page_images):
+            ## 处理中文字符
             chars = self.page_chars[i] if not self.is_english else []
             self.mean_height.append(
                 np.median(sorted([c["height"] for c in chars])) if chars else 0
@@ -997,6 +1030,7 @@ class RAGFlowPdfParser:
             )
             self.page_cum_height.append(img.size[1] / zoomin)
             j = 0
+            ## 处理字符之间的间距
             while j + 1 < len(chars):
                 if chars[j]["text"] and chars[j + 1]["text"] \
                         and re.match(r"[0-9a-zA-Z,.:;!%]+", chars[j]["text"] + chars[j + 1]["text"]) \
@@ -1004,12 +1038,13 @@ class RAGFlowPdfParser:
                                                                        chars[j]["width"]) / 2:
                     chars[j]["text"] += " "
                 j += 1
-
+            ## 文本识别，返回文本框列表
             self.__ocr(i + 1, img, chars, zoomin)
             if callback and i % 6 == 5:
                 callback(prog=(i + 1) * 0.6 / len(self.page_images), msg="")
         # print("OCR:", timer()-st)
 
+        ## 无法直接获取文字的文档，使用ocr识别出来的字符判断是否是英文文档
         if not self.is_english and not any(
                 [c for c in self.page_chars]) and self.boxes:
             bxes = [b for bxs in self.boxes for b in bxs]
@@ -1020,6 +1055,7 @@ class RAGFlowPdfParser:
 
         self.page_cum_height = np.cumsum(self.page_cum_height)
         assert len(self.page_cum_height) == len(self.page_images) + 1
+        ## 尝试使用ocr识别失败，则放大图片再次识别
         if len(self.boxes) == 0 and zoomin < 9: self.__images__(fnm, zoomin * 3, page_from,
                                                                 page_to, callback)
 

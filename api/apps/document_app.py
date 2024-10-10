@@ -98,7 +98,7 @@ def web_crawl():
     e, kb = KnowledgebaseService.get_by_id(kb_id)
     if not e:
         raise LookupError("Can't find this knowledgebase!")
-
+    ## html转pdf
     blob = html2pdf(url)
     if not blob: return server_error_response(ValueError("Download failure."))
 

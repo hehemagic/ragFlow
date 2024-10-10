@@ -482,7 +482,9 @@ class OCR(object):
                 model_dir = os.path.join(
                         get_project_base_directory(),
                         "rag/res/deepdoc")
+                ## det.onnx
                 self.text_detector = TextDetector(model_dir)
+                ## rec.onnx
                 self.text_recognizer = TextRecognizer(model_dir)
             except Exception as e:
                 model_dir = snapshot_download(repo_id="InfiniFlow/deepdoc",
@@ -517,6 +519,7 @@ class OCR(object):
         pts_std = np.float32([[0, 0], [img_crop_width, 0],
                               [img_crop_width, img_crop_height],
                               [0, img_crop_height]])
+        ## 透视变换，将图像摆正
         M = cv2.getPerspectiveTransform(points, pts_std)
         dst_img = cv2.warpPerspective(
             img,
@@ -524,6 +527,7 @@ class OCR(object):
             borderMode=cv2.BORDER_REPLICATE,
             flags=cv2.INTER_CUBIC)
         dst_img_height, dst_img_width = dst_img.shape[0:2]
+        ## 图像变为横向文本
         if dst_img_height * 1.0 / dst_img_width >= 1.5:
             dst_img = np.rot90(dst_img)
         return dst_img
@@ -586,6 +590,7 @@ class OCR(object):
 
         start = time.time()
         ori_im = img.copy()
+        ## 检测文本框
         dt_boxes, elapse = self.text_detector(img)
         time_dict['det'] = elapse
 
@@ -595,10 +600,11 @@ class OCR(object):
             return None, None, time_dict
 
         img_crop_list = []
-
+        ## 文本框排序
         dt_boxes = self.sorted_boxes(dt_boxes)
 
         for bno in range(len(dt_boxes)):
+            ## 图像裁剪并预处理
             tmp_box = copy.deepcopy(dt_boxes[bno])
             img_crop = self.get_rotate_crop_image(ori_im, tmp_box)
             img_crop_list.append(img_crop)
@@ -611,6 +617,7 @@ class OCR(object):
         for box, rec_result in zip(dt_boxes, rec_res):
             text, score = rec_result
             if score >= self.drop_score:
+                ## 清除不是文本的box
                 filter_boxes.append(box)
                 filter_rec_res.append(rec_result)
         end = time.time()

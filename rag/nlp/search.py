@@ -82,6 +82,7 @@ class Dealer:
     def search(self, req, idxnm, emb_mdl=None):
         qst = req.get("question", "")
         bqry, keywords = self.qryr.question(qst)
+        ## 添加限制条件
         bqry = self._add_filters(bqry, req)
         bqry.boost = 0.05
 
@@ -92,11 +93,12 @@ class Dealer:
         src = req.get("fields", ["docnm_kwd", "content_ltks", "kb_id", "img_id", "title_tks", "important_kwd",
                                  "image_id", "doc_id", "q_512_vec", "q_768_vec", "position_int", "knowledge_graph_kwd",
                                  "q_1024_vec", "q_1536_vec", "available_int", "content_with_weight"])
-
+        ## 设置查询条件
         s = s.query(bqry)[pg * ps:(pg + 1) * ps]
         s = s.highlight("content_ltks")
         s = s.highlight("title_ltks")
         if not qst:
+            ## 没有问题，排序
             if not req.get("sort"):
                 s = s.sort(
                     #{"create_time": {"order": "desc", "unmapped_type": "date"}},
@@ -115,6 +117,7 @@ class Dealer:
                 )
 
         if qst:
+            ## 设置高亮
             s = s.highlight_options(
                 fragment_size=120,
                 number_of_fragments=5,
@@ -125,6 +128,7 @@ class Dealer:
         s = s.to_dict()
         q_vec = []
         if req.get("vector"):
+            ## 对问题编码
             assert emb_mdl, "No embedding model selected"
             s["knn"] = self._vector(
                 qst, emb_mdl, req.get(
@@ -134,9 +138,11 @@ class Dealer:
                 del s["highlight"]
             q_vec = s["knn"]["query_vector"]
         es_logger.info("【Q】: {}".format(json.dumps(s)))
+        ## 混合向量查询,knn
         res = self.es.search(deepcopy(s), idxnm=idxnm, timeout="600s", src=src)
         es_logger.info("TOTAL: {}".format(self.es.getTotal(res)))
         if self.es.getTotal(res) == 0 and "knn" in s:
+            ## 放宽条件，重新查询
             bqry, _ = self.qryr.question(qst, min_match="10%")
             if req.get("doc_ids"):
                 bqry = Q("bool", must=[])
@@ -148,6 +154,7 @@ class Dealer:
             es_logger.info("【Q】: {}".format(json.dumps(s)))
 
         kwds = set([])
+        ## 对关键词细粒度分词
         for k in keywords:
             kwds.add(k)
             for kk in rag_tokenizer.fine_grained_tokenize(k).split(" "):
@@ -156,7 +163,7 @@ class Dealer:
                 if kk in kwds:
                     continue
                 kwds.add(kk)
-
+        ## 聚合相同的文档片段
         aggs = self.getAggregation(res, "docnm_kwd")
 
         return self.SearchResult(
@@ -224,12 +231,15 @@ class Dealer:
     def insert_citations(self, answer, chunks, chunk_v,
                          embd_mdl, tkweight=0.1, vtweight=0.9):
         assert len(chunks) == len(chunk_v)
+        ## 分割代码块
         pieces = re.split(r"(```)", answer)
         if len(pieces) >= 3:
+            ## 有代码块
             i = 0
             pieces_ = []
             while i < len(pieces):
                 if pieces[i] == "```":
+                    ## 处理代码内容
                     st = i
                     i += 1
                     while i < len(pieces) and pieces[i] != "```":
@@ -238,6 +248,7 @@ class Dealer:
                         i += 1
                     pieces_.append("".join(pieces[st: i]) + "\n")
                 else:
+                    ## 处理非代码内容，根据特殊的标点符号分割
                     pieces_.extend(
                         re.split(
                             r"([^\|][；。？!！\n]|[a-z][.?;!][ \n])",
@@ -245,11 +256,14 @@ class Dealer:
                     i += 1
             pieces = pieces_
         else:
+            ## 无代码块，直接分割
             pieces = re.split(r"([^\|][；。？!！\n]|[a-z][.?;!][ \n])", answer)
+        ## 将标点符号附加到文本中
         for i in range(1, len(pieces)):
             if re.match(r"([^\|][；。？!！\n]|[a-z][.?;!][ \n])", pieces[i]):
                 pieces[i - 1] += pieces[i][0]
                 pieces[i] = pieces[i][1:]
+        ## 去掉特别短的片段
         idx = []
         pieces_ = []
         for i, t in enumerate(pieces):
@@ -260,17 +274,18 @@ class Dealer:
         es_logger.info("{} => {}".format(answer, pieces_))
         if not pieces_:
             return answer, set([])
-
+        ## 向量嵌入
         ans_v, _ = embd_mdl.encode(pieces_)
         assert len(ans_v[0]) == len(chunk_v[0]), "The dimension of query and chunk do not match: {} vs. {}".format(
             len(ans_v[0]), len(chunk_v[0]))
-
+        # 对chunks进行分词处理
         chunks_tks = [rag_tokenizer.tokenize(self.qryr.rmWWW(ck)).split(" ")
                       for ck in chunks]
         cites = {}
         thr = 0.63
         while thr>0.3 and len(cites.keys()) == 0 and pieces_ and chunks_tks:
             for i, a in enumerate(pieces_):
+                ## 计算混合相似度
                 sim, tksim, vtsim = self.qryr.hybrid_similarity(ans_v[i],
                                                                 chunk_v,
                                                                 rag_tokenizer.tokenize(
@@ -322,7 +337,7 @@ class Dealer:
             important_kwd = sres.field[i].get("important_kwd", [])
             tks = content_ltks + title_tks + important_kwd
             ins_tw.append(tks)
-
+        ## 计算混合相似度
         sim, tksim, vtsim = self.qryr.hybrid_similarity(sres.query_vector,
                                                         ins_embd,
                                                         keywords,
@@ -345,6 +360,7 @@ class Dealer:
             ins_tw.append(tks)
 
         tksim = self.qryr.token_similarity(keywords, ins_tw)
+        ## rerankModel计算向量相似度
         vtsim,_ = rerank_mdl.similarity(" ".join(keywords), [rmSpace(" ".join(tks)) for tks in ins_tw])
 
         return tkweight*np.array(tksim) + vtweight*vtsim, tksim, vtsim
@@ -360,23 +376,31 @@ class Dealer:
         ranks = {"total": 0, "chunks": [], "doc_aggs": {}}
         if not question:
             return ranks
+        ## 构造查询条件
         req = {"kb_ids": kb_ids, "doc_ids": doc_ids, "size": page_size,
                "question": question, "vector": True, "topk": top,
                "similarity": similarity_threshold,
                "available_int": 1}
+        ## 查询召回
         sres = self.search(req, index_name(tenant_id), embd_mdl)
 
+        ## 重排
         if rerank_mdl:
+            ## 使用模型重排，计算混合相似度
             sim, tsim, vsim = self.rerank_by_model(rerank_mdl,
                 sres, question, 1 - vector_similarity_weight, vector_similarity_weight)
         else:
+            ## 不使用模型，计算混合相似度
             sim, tsim, vsim = self.rerank(
                 sres, question, 1 - vector_similarity_weight, vector_similarity_weight)
+        ## 逆序
         idx = np.argsort(sim * -1)
 
         dim = len(sres.query_vector)
+        ## 获取分页结果
         start_idx = (page - 1) * page_size
         for i in idx:
+            ## 跳过相似度小于阈值的数据
             if sim[i] < similarity_threshold:
                 break
             ranks["total"] += 1
@@ -387,6 +411,7 @@ class Dealer:
                 if aggs:
                     continue
                 break
+            ## 封装召回结果
             id = sres.ids[i]
             dnm = sres.field[id]["docnm_kwd"]
             did = sres.field[id]["doc_id"]
@@ -423,12 +448,15 @@ class Dealer:
 
         return ranks
 
+    ## 使用sql在ES中查询
     def sql_retrieval(self, sql, fetch_size=128, format="json"):
         from api.settings import chat_logger
+        ## sql预处理
         sql = re.sub(r"[ `]+", " ", sql)
         sql = sql.replace("%", "")
         es_logger.info(f"Get es sql: {sql}")
         replaces = []
+        ## 字段匹配替换，语法替换
         for r in re.finditer(r" ([a-z_]+_l?tks)( like | ?= ?)'([^']+)'", sql):
             fld, v = r.group(1), r.group(3)
             match = " MATCH({}, '{}', 'operator=OR;minimum_should_match=30%') ".format(
@@ -439,11 +467,11 @@ class Dealer:
                     r.group(2),
                     r.group(3)),
                     match))
-
+        ## 替换sql中的条件
         for p, r in replaces:
             sql = sql.replace(p, r, 1)
         chat_logger.info(f"To es: {sql}")
-
+        ## 执行sql
         try:
             tbl = self.es.sql(sql, fetch_size, format)
             return tbl

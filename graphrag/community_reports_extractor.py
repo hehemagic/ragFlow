@@ -55,6 +55,7 @@ class CommunityReportsExtractor:
         self._max_report_length = max_report_length or 1500
 
     def __call__(self, graph: nx.Graph, callback: Callable | None = None):
+        ## leiden算法，每个层级的社区结构
         communities: dict[str, dict[str, List]] = leiden.run(graph, {})
         total = sum([len(comm.items()) for _, comm in communities.items()])
         relations_df = pd.DataFrame([{"source":s, "target": t, **attr} for s, t, attr in graph.edges(data=True)])
@@ -66,9 +67,11 @@ class CommunityReportsExtractor:
             for cm_id, ents in comm.items():
                 weight = ents["weight"]
                 ents = ents["nodes"]
+                ## 实体数据
                 ent_df = pd.DataFrame([{"entity": n, **graph.nodes[n]} for n in ents])
+                ## 关系数据
                 rela_df = relations_df[(relations_df["source"].isin(ents)) | (relations_df["target"].isin(ents))].reset_index(drop=True)
-
+                ## 生成模板变量
                 prompt_variables = {
                     "entity_df": ent_df.to_csv(index_label="id"),
                     "relation_df": rela_df.to_csv(index_label="id")
@@ -76,8 +79,10 @@ class CommunityReportsExtractor:
                 text = perform_variable_replacements(self._extraction_prompt, variables=prompt_variables)
                 gen_conf = {"temperature": 0.3}
                 try:
+                    ## 大模型生成社区描述
                     response = self._llm.chat(text, [{"role": "user", "content": "Output:"}], gen_conf)
                     token_count += num_tokens_from_string(text + response)
+                    ## 输出格式化
                     response = re.sub(r"^[^\{]*", "", response)
                     response = re.sub(r"[^\}]*$", "", response)
                     print(response)
@@ -95,8 +100,9 @@ class CommunityReportsExtractor:
                     print("ERROR: ", traceback.format_exc())
                     self._on_error(e, traceback.format_exc(), None)
                     continue
-
+                ## 将社区标题添加到节点上
                 add_community_info2graph(graph, ents, response["title"])
+                ## 保存输出和格式化输出
                 res_str.append(self._get_text_output(response))
                 res_dict.append(response)
                 over += 1

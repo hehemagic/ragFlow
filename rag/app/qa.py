@@ -34,6 +34,7 @@ class Excel(ExcelParser):
             total += len(list(wb[sheetname].rows))
 
         res, fails = [], []
+        ## res保存(q,a),fails保存读取失败的行号
         for sheetname in wb.sheetnames:
             ws = wb[sheetname]
             rows = list(ws.rows)
@@ -61,6 +62,7 @@ class Excel(ExcelParser):
 
         callback(0.6, ("Extract Q&A: {}. ".format(len(res)) + (
             f"{len(fails)} failure, line: %s..." % (",".join(fails[:3])) if fails else "")))
+        ## 判断是否是英文
         self.is_english = is_english(
             [rmPrefix(q) for q, _ in random_choices(res, k=30) if len(q) > 1])
         return res
@@ -93,6 +95,7 @@ class Pdf(PdfParser):
         cron_logger.info("layouts: {}".format(timer() - start))
         sections = [b["text"] for b in self.boxes]
         bull_x0_list = []
+        ## 找出最可能的QA格式
         q_bull, reg = qbullets_category(sections)
         if q_bull == -1:
             raise ValueError("Unable to recognize Q&A structure.")
@@ -105,12 +108,14 @@ class Pdf(PdfParser):
             tbls_pn = element[1][0][0]
             tbls_top = element[1][0][3]
             return tbls_pn, tbls_top
+        ## 将表格按照页码和位置排序
         tbls.sort(key=sort_key)
         tbl_index = 0
         last_pn, last_bottom = 0, 0
         tbl_pn, tbl_left, tbl_right, tbl_top, tbl_bottom, tbl_tag, tbl_text = 1, 0, 0, 0, 0, '@@0\t0\t0\t0\t0##', ''
         for box in self.boxes:
             section, line_tag = box['text'], self._line_tag(box, zoomin)
+            ## 判断当前box是否是问题
             has_bull, index = has_qbullet(reg, box, last_box, last_index, last_bull, bull_x0_list)
             last_box, last_index, last_bull = box, index, has_bull
             line_pn = float(line_tag.lstrip('@@').split('\t')[0])
@@ -118,12 +123,15 @@ class Pdf(PdfParser):
             tbl_pn, tbl_left, tbl_right, tbl_top, tbl_bottom, tbl_tag, tbl_text = self.get_tbls_info(tbls, tbl_index)
             if not has_bull:  # No question bullet
                 if not last_q:
+                    ## 没有问题，处理表格是否跳过
                     if tbl_pn < line_pn or (tbl_pn == line_pn and tbl_top <= line_top):    # image passed
                         tbl_index += 1
                     continue
                 else:
+                    ## 有问题将section和表格一起记录为answer
                     sum_tag = line_tag
                     sum_section = section
+                    ## 处理上一个问题的答案
                     while ((tbl_pn == last_pn and tbl_top>= last_bottom) or (tbl_pn > last_pn)) \
                         and ((tbl_pn == line_pn and tbl_top <= line_top) or (tbl_pn < line_pn)):    # add image at the middle of current answer
                         sum_tag = f'{tbl_tag}{sum_tag}'
@@ -134,6 +142,7 @@ class Pdf(PdfParser):
                     last_tag = f'{last_tag}{sum_tag}'
             else:
                 if last_q:
+                    ## 将表格放在上一个问题答案的最后
                     while ((tbl_pn == last_pn and tbl_top>= last_bottom) or (tbl_pn > last_pn)) \
                         and ((tbl_pn == line_pn and tbl_top <= line_top) or (tbl_pn < line_pn)):    # add image at the end of last answer
                         last_tag = f'{last_tag}{tbl_tag}'
@@ -141,6 +150,7 @@ class Pdf(PdfParser):
                         tbl_index += 1
                         tbl_pn, tbl_left, tbl_right, tbl_top, tbl_bottom, tbl_tag, tbl_text = self.get_tbls_info(tbls, tbl_index)
                     image, poss = self.crop(last_tag, need_position=True)
+                    ## 记录问题、答案、图片、位置
                     qai_list.append((last_q, last_a, image, poss))
                     last_q, last_a, last_tag = '', '', ''
                 last_q = has_bull.group()
@@ -190,6 +200,7 @@ class Docx(DocxParser):
                 break
             question_level, p_text = 0, ''
             if from_page <= pn < to_page and p.text.strip():
+                ## 直接读取内容，Heading标识问题
                 question_level, p_text = docx_question_level(p)
             if not question_level or question_level > 6: # not a question
                 last_answer = f'{last_answer}\n{p_text}'
@@ -316,7 +327,9 @@ def chunk(filename, binary=None, lang="Chinese", callback=None, **kwargs):
                     if not l:
                         break
                     txt += l
+        ## 按行读取内容
         lines = txt.split("\n")
+        ## 确认QA的分隔符
         comma, tab = 0, 0
         for l in lines:
             if len(l.split(",")) == 2: comma += 1
@@ -333,13 +346,14 @@ def chunk(filename, binary=None, lang="Chinese", callback=None, **kwargs):
                 else:
                     fails.append(str(i+1))
             elif len(arr) == 2:
+                ## 对上一个QA组合分词
                 if question and answer: res.append(beAdoc(deepcopy(doc), question, answer, eng))
                 question, answer = arr
             i += 1
             if len(res) % 999 == 0:
                 callback(len(res) * 0.6 / len(lines), ("Extract Q&A: {}".format(len(res)) + (
                     f"{len(fails)} failure, line: %s..." % (",".join(fails[:3])) if fails else "")))
-
+        ## 处理最后一个QA
         if question: res.append(beAdoc(deepcopy(doc), question, answer, eng))
 
         callback(0.6, ("Extract Q&A: {}".format(len(res)) + (
@@ -354,6 +368,7 @@ def chunk(filename, binary=None, lang="Chinese", callback=None, **kwargs):
         
 
         for q, a, image, poss in qai_list:
+            ## 增加位置信息
             res.append(beAdocPdf(deepcopy(doc), q, a, eng, image, poss))
         return res
     elif re.search(r"\.(md|markdown)$", filename, re.IGNORECASE):
@@ -376,9 +391,11 @@ def chunk(filename, binary=None, lang="Chinese", callback=None, **kwargs):
         level_index = [-1] * 7
         for index, l in enumerate(lines):
             if l.strip().startswith('```'):
+                ## 判断是否是代码
                 code_block = not code_block
             question_level, question = 0, ''
             if not code_block:
+                ## 根据md格式，获取问题层级
                 question_level, question = mdQuestionLevel(l)
 
             if not question_level or question_level > 6: # not a question
@@ -392,11 +409,13 @@ def chunk(filename, binary=None, lang="Chinese", callback=None, **kwargs):
 
                 i = question_level
                 while question_stack and i <= level_stack[-1]:
+                    ## 弹出已处理完的问题
                     question_stack.pop()
                     level_stack.pop()
                 question_stack.append(question)
                 level_stack.append(question_level)
         if last_answer.strip():
+            ## 添加最后一个问题
             sum_question = '\n'.join(question_stack)
             if sum_question:
                 res.append(beAdoc(deepcopy(doc), sum_question, markdown(last_answer, extensions=['markdown.extensions.tables']), eng))

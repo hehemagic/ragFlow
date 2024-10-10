@@ -40,7 +40,9 @@ class ConversationService(CommonService):
     model = Conversation
 
 
+## 保证消息不超过max_length
 def message_fit_in(msg, max_length=4000):
+    ## 计算token
     def count():
         nonlocal msg
         tks_cnts = []
@@ -55,7 +57,7 @@ def message_fit_in(msg, max_length=4000):
     c = count()
     if c < max_length:
         return c, msg
-
+    ## 删除多余的system信息
     msg_ = [m for m in msg[:-1] if m["role"] == "system"]
     msg_.append(msg[-1])
     msg = msg_
@@ -89,6 +91,7 @@ def llm_id2llm_type(llm_id):
 def chat(dialog, messages, stream=True, **kwargs):
     assert messages[-1]["role"] == "user", "The last content of this conversation is not from user."
     st = timer()
+    ## 获取模型服务
     llm = LLMService.query(llm_name=dialog.llm_id)
     if not llm:
         llm = TenantLLMService.query(tenant_id=dialog.tenant_id, llm_name=dialog.llm_id)
@@ -97,6 +100,7 @@ def chat(dialog, messages, stream=True, **kwargs):
         max_tokens = 8192
     else:
         max_tokens = llm[0].max_tokens
+    ## 获取知识库信息
     kbs = KnowledgebaseService.get_by_ids(dialog.kb_ids)
     embd_nms = list(set([kb.embd_id for kb in kbs]))
     if len(embd_nms) != 1:
@@ -104,35 +108,38 @@ def chat(dialog, messages, stream=True, **kwargs):
         return {"answer": "**ERROR**: Knowledge bases use different embedding models.", "reference": []}
 
     is_kg = all([kb.parser_id == ParserType.KG for kb in kbs])
+    ## 区分不同的召回
     retr = retrievaler if not is_kg else kg_retrievaler
-
+    ## 最近三次的问题
     questions = [m["content"] for m in messages if m["role"] == "user"][-3:]
+    ## 获取参考附件文档
     attachments = kwargs["doc_ids"].split(",") if "doc_ids" in kwargs else None
     if "doc_ids" in messages[-1]:
         attachments = messages[-1]["doc_ids"]
         for m in messages[:-1]:
             if "doc_ids" in m:
                 attachments.extend(m["doc_ids"])
-
+    ## 加载不同类型模型
     embd_mdl = LLMBundle(dialog.tenant_id, LLMType.EMBEDDING, embd_nms[0])
     if llm_id2llm_type(dialog.llm_id) == "image2text":
         chat_mdl = LLMBundle(dialog.tenant_id, LLMType.IMAGE2TEXT, dialog.llm_id)
     else:
         chat_mdl = LLMBundle(dialog.tenant_id, LLMType.CHAT, dialog.llm_id)
-
+    ## 获取prompt和表结构
     prompt_config = dialog.prompt_config
     field_map = KnowledgebaseService.get_field_map(dialog.kb_ids)
     tts_mdl = None
     if prompt_config.get("tts"):
         tts_mdl = LLMBundle(dialog.tenant_id, LLMType.TTS)
-    # try to use sql if field mapping is good to go
+    # 有表结构则尝试使用sql
     if field_map:
         chat_logger.info("Use SQL to retrieval:{}".format(questions[-1]))
         ans = use_sql(questions[-1], field_map, dialog.tenant_id, chat_mdl, prompt_config.get("quote", True))
         if ans:
             yield ans
             return
-
+        
+    ## 处理模板参数
     for p in prompt_config["parameters"]:
         if p["key"] == "knowledge":
             continue
@@ -145,14 +152,16 @@ def chat(dialog, messages, stream=True, **kwargs):
     rerank_mdl = None
     if dialog.rerank_id:
         rerank_mdl = LLMBundle(dialog.tenant_id, LLMType.RERANK, dialog.rerank_id)
-
+    ## 重复添加最后一次的问题，加强！
     for _ in range(len(questions) // 2):
         questions.append(questions[-1])
     if "knowledge" not in [p["key"] for p in prompt_config["parameters"]]:
         kbinfos = {"total": 0, "chunks": [], "doc_aggs": []}
     else:
         if prompt_config.get("keyword", False):
+            ## 提取重要的关键词
             questions[-1] += keyword_extraction(chat_mdl, questions[-1])
+        ## 召回文档
         kbinfos = retr.retrieval(" ".join(questions), embd_mdl, dialog.tenant_id, dialog.kb_ids, 1, dialog.top_n,
                                         dialog.similarity_threshold,
                                         dialog.vector_similarity_weight,
@@ -163,6 +172,7 @@ def chat(dialog, messages, stream=True, **kwargs):
         "{}->{}".format(" ".join(questions), "\n->".join(knowledges)))
     retrieval_tm = timer()
 
+    ## 没有相关文档，展示空回答
     if not knowledges and prompt_config.get("empty_response"):
         empty_res = prompt_config["empty_response"]
         yield {"answer": empty_res, "reference": kbinfos, "audio_binary": tts(tts_mdl, empty_res)}
@@ -171,9 +181,11 @@ def chat(dialog, messages, stream=True, **kwargs):
     kwargs["knowledge"] = "\n------\n".join(knowledges)
     gen_conf = dialog.llm_setting
 
+    ## 拼接system信息和上下文
     msg = [{"role": "system", "content": prompt_config["system"].format(**kwargs)}]
     msg.extend([{"role": m["role"], "content": re.sub(r"##\d+\$\$", "", m["content"])}
                 for m in messages if m["role"] != "system"])
+    ## 保证输入不超过max_token
     used_token_count, msg = message_fit_in(msg, int(max_tokens * 0.97))
     assert len(msg) >= 2, f"message_fit_in has bug: {msg}"
     prompt = msg[0]["content"]
@@ -187,6 +199,7 @@ def chat(dialog, messages, stream=True, **kwargs):
         nonlocal prompt_config, knowledges, kwargs, kbinfos, prompt, retrieval_tm
         refs = []
         if knowledges and (prompt_config.get("quote", True) and kwargs.get("quote", True)):
+            ## 插入引用
             answer, idx = retr.insert_citations(answer,
                                                        [ck["content_ltks"]
                                                         for ck in kbinfos["chunks"]],
@@ -227,6 +240,7 @@ def chat(dialog, messages, stream=True, **kwargs):
             yield {"answer": answer, "reference": {}, "audio_binary": tts(tts_mdl, delta_ans)}
         yield decorate_answer(answer)
     else:
+        ## 获得回答
         answer = chat_mdl.chat(prompt, msg[1:], gen_conf)
         chat_logger.info("User: {}|Assistant: {}".format(
             msg[-1]["content"], answer))
@@ -254,20 +268,26 @@ def use_sql(question, field_map, tenant_id, chat_mdl, quota=True):
 
     def get_table():
         nonlocal sys_prompt, user_promt, question, tried_times
+        ## 生成sql
         sql = chat_mdl.chat(sys_prompt, [{"role": "user", "content": user_promt}], {
             "temperature": 0.06})
         print(user_promt, sql)
         chat_logger.info(f"“{question}”==>{user_promt} get SQL: {sql}")
+        ## 清洗生成的sql
         sql = re.sub(r"[\r\n]+", " ", sql.lower())
         sql = re.sub(r".*select ", "select ", sql.lower())
         sql = re.sub(r" +", " ", sql)
         sql = re.sub(r"([;；]|```).*", "", sql)
+        ## 生成的sql必须以select开头
         if sql[:len("select ")] != "select ":
             return None, None
         if not re.search(r"((sum|avg|max|min)\(|group by )", sql.lower()):
+            ## 非聚合情况
             if sql[:len("select *")] != "select *":
+                ## 必须包含这两个字段
                 sql = "select doc_id,docnm_kwd," + sql[6:]
             else:
+                ## 添加字段
                 flds = []
                 for k in field_map.keys():
                     if k in forbidden_select_fields4resume:
@@ -287,6 +307,7 @@ def use_sql(question, field_map, tenant_id, chat_mdl, quota=True):
     if tbl is None:
         return None
     if tbl.get("error") and tried_times <= 2:
+        ## sql出错，最多尝试两次
         user_promt = """
         表名：{}；
         数据库表字段说明如下：
@@ -313,8 +334,9 @@ def use_sql(question, field_map, tenant_id, chat_mdl, quota=True):
     chat_logger.info("GET table: {}".format(tbl))
     print(tbl)
     if tbl.get("error") or len(tbl["rows"]) == 0:
+        ## sql出错
         return None
-
+    ## 处理查询的结果
     docid_idx = set([ii for ii, c in enumerate(
         tbl["columns"]) if c["name"] == "doc_id"])
     docnm_idx = set([ii for ii, c in enumerate(
@@ -322,23 +344,25 @@ def use_sql(question, field_map, tenant_id, chat_mdl, quota=True):
     clmn_idx = [ii for ii in range(
         len(tbl["columns"])) if ii not in (docid_idx | docnm_idx)]
 
-    # compose markdown table
+    # 生成markdown表格的列标题
     clmns = "|" + "|".join([re.sub(r"(/.*|（[^（）]+）)", "", field_map.get(tbl["columns"][i]["name"],
                                                                         tbl["columns"][i]["name"])) for i in
                             clmn_idx]) + ("|Source|" if docid_idx and docid_idx else "|")
-
+    ## 生成表格分割线
     line = "|" + "|".join(["------" for _ in range(len(clmn_idx))]) + \
            ("|------|" if docid_idx and docid_idx else "")
-
+    ## 生成表格内容
     rows = ["|" +
             "|".join([rmSpace(str(r[i])) for i in clmn_idx]).replace("None", " ") +
             "|" for r in tbl["rows"]]
+    ## 为每行添加编号标识
     if quota:
         rows = "\n".join([r + f" ##{ii}$$ |" for ii, r in enumerate(rows)])
     else:
         rows = "\n".join([r + f" ##{ii}$$ |" for ii, r in enumerate(rows)])
     rows = re.sub(r"T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+Z)?\|", "|", rows)
 
+    ## 必须包含doc_id和docnm_id
     if not docid_idx or not docnm_idx:
         chat_logger.warning("SQL missing field: " + sql)
         return {
@@ -346,7 +370,7 @@ def use_sql(question, field_map, tenant_id, chat_mdl, quota=True):
             "reference": {"chunks": [], "doc_aggs": []},
             "prompt": sys_prompt
         }
-
+    ## 返回文档聚合信息
     docid_idx = list(docid_idx)[0]
     docnm_idx = list(docnm_idx)[0]
     doc_aggs = {}
@@ -354,6 +378,7 @@ def use_sql(question, field_map, tenant_id, chat_mdl, quota=True):
         if r[docid_idx] not in doc_aggs:
             doc_aggs[r[docid_idx]] = {"doc_name": r[docnm_idx], "count": 0}
         doc_aggs[r[docid_idx]]["count"] += 1
+    ## 生成markdown表格
     return {
         "answer": "\n".join([clmns, line, rows]),
         "reference": {"chunks": [{"doc_id": r[docid_idx], "docnm_kwd": r[docnm_idx]} for r in tbl["rows"]],

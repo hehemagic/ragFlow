@@ -88,10 +88,10 @@ class EntityResolution:
         nodes = graph.nodes
         entity_types = list(set(graph.nodes[node]['entity_type'] for node in nodes))
         node_clusters = {entity_type: [] for entity_type in entity_types}
-
+        ## 将相同type的节点放在一起
         for node in nodes:
             node_clusters[graph.nodes[node]['entity_type']].append(node)
-
+        ## 存储每个type下，相似的node
         candidate_resolution = {entity_type: [] for entity_type in entity_types}
         for node_cluster in node_clusters.items():
             candidate_resolution_tmp = []
@@ -105,10 +105,13 @@ class EntityResolution:
                 candidate_resolution[node_cluster[0]] = candidate_resolution_tmp
 
         gen_conf = {"temperature": 0.5}
+        ## 存储最终需要合并的node
         resolution_result = set()
+        ## 大模型进一步判断node是否相似
         for candidate_resolution_i in candidate_resolution.items():
             if candidate_resolution_i[1]:
                 try:
+                    ## 构建大模型prompt
                     pair_txt = [
                         f'When determining whether two {candidate_resolution_i[0]}s are the same, you should only focus on critical properties and overlook noisy factors.\n']
                     for index, candidate in enumerate(candidate_resolution_i[1]):
@@ -126,6 +129,7 @@ class EntityResolution:
                     text = perform_variable_replacements(self._resolution_prompt, variables=variables)
 
                     response = self._llm.chat(text, [{"role": "user", "content": "Output:"}], gen_conf)
+                    ## 后处理判断结果
                     result = self._process_results(len(candidate_resolution_i[1]), response,
                                                    prompt_variables.get(self._record_delimiter_key,
                                                                         DEFAULT_RECORD_DELIMITER),
@@ -140,27 +144,34 @@ class EntityResolution:
                     self._on_error(e, traceback.format_exc(), None)
 
         connect_graph = nx.Graph()
+        ## 将相似的Node构建成图
         connect_graph.add_edges_from(resolution_result)
         for sub_connect_graph in nx.connected_components(connect_graph):
+            ## 为连通分量创建子图
             sub_connect_graph = connect_graph.subgraph(sub_connect_graph)
             remove_nodes = list(sub_connect_graph.nodes)
+            ## 每个子图只保留一个node
             keep_node = remove_nodes.pop()
             for remove_node in remove_nodes:
+                ## 合并删除节点的描述和权重
                 remove_node_neighbors = graph[remove_node]
                 graph.nodes[keep_node]['description'] += graph.nodes[remove_node]['description']
                 graph.nodes[keep_node]['weight'] += graph.nodes[remove_node]['weight']
                 remove_node_neighbors = list(remove_node_neighbors)
                 for remove_node_neighbor in remove_node_neighbors:
                     if remove_node_neighbor == keep_node:
+                        ## 邻居节点是保存的节点，删除边
                         graph.remove_edge(keep_node, remove_node)
                         continue
                     if graph.has_edge(keep_node, remove_node_neighbor):
+                        ## 邻居节点和保存节点有连接，合并描述和权重
                         graph[keep_node][remove_node_neighbor]['weight'] += graph[remove_node][remove_node_neighbor][
                             'weight']
                         graph[keep_node][remove_node_neighbor]['description'] += \
                             graph[remove_node][remove_node_neighbor]['description']
                         graph.remove_edge(remove_node, remove_node_neighbor)
                     else:
+                        ## 邻居节点和保存节点无连接，迁移边
                         graph.add_edge(keep_node, remove_node_neighbor,
                                        weight=graph[remove_node][remove_node_neighbor]['weight'],
                                        description=graph[remove_node][remove_node_neighbor]['description'],
@@ -204,10 +215,12 @@ class EntityResolution:
 
     def is_similarity(self, a, b):
         if is_english(a) and is_english(b):
+            ## 英文字符使用编辑距离来判断
             if editdistance.eval(a, b) <= min(len(a), len(b)) // 2:
                 return True
 
         if len(set(a) & set(b)) > 0:
+            ## 其他语言，有相同字符就相似
             return True
 
         return False

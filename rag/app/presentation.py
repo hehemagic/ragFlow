@@ -30,9 +30,11 @@ class Ppt(PptParser):
         import aspose.slides as slides
         import aspose.pydrawing as drawing
         imgs = []
+        ## 提取ppt中的图片
         with slides.Presentation(BytesIO(fnm)) as presentation:
             for i, slide in enumerate(presentation.slides[from_page: to_page]):
                 buffered = BytesIO()
+                ## 获取缩略图，比例为0.5
                 slide.get_thumbnail(
                     0.5, 0.5).save(
                     buffered, drawing.imaging.ImageFormat.jpeg)

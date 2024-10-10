@@ -111,24 +111,28 @@ class Docx(DocxParser):
                 break
             question_level, p_text = 0, ''
             if from_page <= pn < to_page and p.text.strip():
+                ## 问题层级和文本
                 question_level, p_text = docx_question_level(p)
             if not question_level or question_level > 6: # not a question
                 last_answer = f'{last_answer}\n{p_text}'
+                ## 获取段落中的图片，并拼接
                 current_image = self.get_picture(self.doc, p)
                 last_image = self.concat_img(last_image, current_image)
             else:   # is a question
                 if last_answer or last_image:
+                    ## 上一段是一个完整的答案，需要重置
                     sum_question = '\n'.join(question_stack)
                     if sum_question:
                         ti_list.append((f'{sum_question}\n{last_answer}', last_image))
                     last_answer, last_image = '', None
-
+                ## 嵌套问题结构
                 i = question_level
                 while question_stack and i <= level_stack[-1]:
                     question_stack.pop()
                     level_stack.pop()
                 question_stack.append(p_text)
                 level_stack.append(question_level)
+            ## 处理分页符
             for run in p.runs:
                 if 'lastRenderedPageBreak' in run._element.xml:
                     pn += 1
@@ -139,7 +143,7 @@ class Docx(DocxParser):
             sum_question = '\n'.join(question_stack)
             if sum_question:
                 ti_list.append((f'{sum_question}\n{last_answer}', last_image))
-                
+        ## table变为html
         tbls = []
         for tb in self.doc.tables:
             html= "<table>"
@@ -183,7 +187,9 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
             sections = [(t, l, [[0] * 5]) for t, l in sections]
         # set pivot using the most frequent type of title,
         # then merge between 2 pivot
+        ## 设置section的章节结构，获取出现频率最高的章节level
         if len(sections) > 0 and len(pdf_parser.outlines) / len(sections) > 0.1:
+            ## outline足够描述结构信息
             max_lvl = max([lvl for _, lvl in pdf_parser.outlines])
             most_level = max(0, max_lvl - 1)
             levels = []
@@ -193,6 +199,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
                     tks_ = set([txt[i] + txt[i + 1]
                                 for i in range(min(len(t), len(txt) - 1))])
                     if len(set(tks & tks_)) / max([len(tks), len(tks_), 1]) > 0.8:
+                        ## 寻找相似度超过80%的标题
                         levels.append(lvl)
                         break
                 else:
@@ -203,6 +210,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
             most_level, levels = title_frequency(
                 bull, [(txt, l) for txt, l, poss in sections])
 
+        ## 相似层级的段落归类到同一个章节
         assert len(sections) == len(levels)
         sec_ids = []
         sid = 0
@@ -214,6 +222,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
 
         sections = [(txt, sec_ids[i], poss)
                     for i, (txt, _, poss) in enumerate(sections)]
+        ## 将表格写入section中
         for (img, rows), poss in tbls:
             if not rows: continue
             sections.append((rows if isinstance(rows, str) else rows[0], -1,
@@ -228,6 +237,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
         chunks = []
         last_sid = -2
         tk_cnt = 0
+        ## 合并相同章节的段落，每个chunk不超过1024
         for txt, sec_id, poss in sorted(sections, key=lambda x: (
                 x[-1][0][0], x[-1][0][3], x[-1][0][1])):
             poss = "\t".join([tag(*pos) for pos in poss])

@@ -45,6 +45,7 @@ class Pdf(PdfParser):
         tbls = self._extract_table_figure(True, zoomin, True, True)
         self._naive_vertical_merge()
         self._filter_forpages()
+        ## 合并相同符号的文本框
         self._merge_with_same_bullet()
         callback(0.75, "Text merging finished.")
 
@@ -74,6 +75,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
         # TODO: table of contents need to be removed
         sections, tbls = doc_parser(
             binary if binary else filename, from_page=from_page, to_page=to_page)
+        ## 删除目录、致谢等
         remove_contents_table(sections, eng=is_english(
             random_choices([t for t, _ in sections], k=200)))
         tbls = [((None, lns), None) for lns in tbls]
@@ -126,7 +128,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
     else:
         raise NotImplementedError(
             "file type not supported yet(doc, docx, pdf, txt supported)")
-
+    ## 插入章节标题
     make_colon_as_title(sections)
     bull = bullets_category(
         [t for t in random_choices([t for t, _ in sections], k=100)])
