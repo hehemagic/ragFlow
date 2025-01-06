@@ -10,7 +10,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-# from tika import parser
+from tika import parser
 from io import BytesIO
 from docx import Document
 from timeit import default_timer as timer

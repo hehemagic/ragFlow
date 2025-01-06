@@ -77,6 +77,7 @@ FACTORY = {
 CONSUMEER_NAME = "task_consumer_" + ("0" if len(sys.argv) < 2 else sys.argv[1])
 PAYLOAD = None
 
+## 更新每个task的进度
 def set_progress(task_id, from_page=0, to_page=-1,
                  prog=None, msg="Processing..."):
     global PAYLOAD
@@ -324,7 +325,7 @@ def run_raptor(row, chat_mdl, embd_mdl, callback=None):
 
 
 def main():
-    ## 拿取任务
+    ## 拿取任务，每次拿一个
     rows = collect()
     if len(rows) == 0:
         return
