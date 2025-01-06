@@ -36,13 +36,9 @@ class BaiduFanyiParam(ComponentParamBase):
         self.domain = 'finance'
 
     def check(self):
-        self.check_positive_integer(self.top_n, "Top N")
         self.check_empty(self.appid, "BaiduFanyi APPID")
         self.check_empty(self.secret_key, "BaiduFanyi Secret Key")
         self.check_valid_value(self.trans_type, "Translate type", ['translate', 'fieldtranslate'])
-        self.check_valid_value(self.trans_type, "Translate domain",
-                               ['it', 'finance', 'machinery', 'senimed', 'novel', 'academic', 'aerospace', 'wiki',
-                                'news', 'law', 'contract'])
         self.check_valid_value(self.source_lang, "Source language",
                                ['auto', 'zh', 'en', 'yue', 'wyw', 'jp', 'kor', 'fra', 'spa', 'th', 'ara', 'ru', 'pt',
                                 'de', 'it', 'el', 'nl', 'pl', 'bul', 'est', 'dan', 'fin', 'cs', 'rom', 'slo', 'swe',
@@ -97,3 +93,4 @@ class BaiduFanyi(ComponentBase, ABC):
 
         except Exception as e:
             BaiduFanyi.be_output("**Error**:" + str(e))
+    

@@ -13,14 +13,16 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-
 import logging
+import itertools
 import re
 import traceback
 from dataclasses import dataclass
 from typing import Any
 
 import networkx as nx
+
+from graphrag.extractor import Extractor
 from rag.nlp import is_english
 import editdistance
 from graphrag.entity_resolution_prompt import ENTITY_RESOLUTION_PROMPT
@@ -39,10 +41,9 @@ class EntityResolutionResult:
     output: nx.Graph
 
 
-class EntityResolution:
+class EntityResolution(Extractor):
     """Entity resolution class definition."""
 
-    _llm: CompletionLLM
     _resolution_prompt: str
     _output_formatter_prompt: str
     _on_error: ErrorHandlerFn
@@ -93,16 +94,8 @@ class EntityResolution:
             node_clusters[graph.nodes[node]['entity_type']].append(node)
         ## 存储每个type下，相似的node
         candidate_resolution = {entity_type: [] for entity_type in entity_types}
-        for node_cluster in node_clusters.items():
-            candidate_resolution_tmp = []
-            for a in node_cluster[1]:
-                for b in node_cluster[1]:
-                    if a == b:
-                        continue
-                    if self.is_similarity(a, b) and (b, a) not in candidate_resolution_tmp:
-                        candidate_resolution_tmp.append((a, b))
-            if candidate_resolution_tmp:
-                candidate_resolution[node_cluster[0]] = candidate_resolution_tmp
+        for k, v in node_clusters.items():
+            candidate_resolution[k] = [(a, b) for a, b in itertools.combinations(v, 2) if self.is_similarity(a, b)]
 
         gen_conf = {"temperature": 0.5}
         ## 存储最终需要合并的node
@@ -128,7 +121,7 @@ class EntityResolution:
                     }
                     text = perform_variable_replacements(self._resolution_prompt, variables=variables)
 
-                    response = self._llm.chat(text, [{"role": "user", "content": "Output:"}], gen_conf)
+                    response = self._chat(text, [{"role": "user", "content": "Output:"}], gen_conf)
                     ## 后处理判断结果
                     result = self._process_results(len(candidate_resolution_i[1]), response,
                                                    prompt_variables.get(self._record_delimiter_key,

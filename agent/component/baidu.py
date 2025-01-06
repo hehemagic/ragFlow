@@ -13,13 +13,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-import random
+import logging
 from abc import ABC
-from functools import partial
 import pandas as pd
 import requests
 import re
-from agent.settings import DEBUG
 from agent.component.base import ComponentBase, ComponentParamBase
 
 
@@ -46,7 +44,7 @@ class Baidu(ComponentBase, ABC):
             return Baidu.be_output("")
 
         try:
-            url = 'https://www.baidu.com/s?wd=' + ans + '&rn=' + str(self._param.top_n)
+            url = 'http://www.baidu.com/s?wd=' + ans + '&rn=' + str(self._param.top_n)
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.104 Safari/537.36'}
             response = requests.get(url=url, headers=headers)
@@ -64,6 +62,6 @@ class Baidu(ComponentBase, ABC):
             return Baidu.be_output("")
 
         df = pd.DataFrame(baidu_res)
-        if DEBUG: print(df, ":::::::::::::::::::::::::::::::::")
+        logging.debug(f"df: {str(df)}")
         return df
 

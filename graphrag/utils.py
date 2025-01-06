@@ -6,31 +6,38 @@ Reference:
 """
 
 import html
+import json
 import re
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable
+
+import numpy as np
+import xxhash
+
+from rag.utils.redis_conn import REDIS_CONN
 
 ErrorHandlerFn = Callable[[BaseException | None, str | None, dict | None], None]
 
 
 def perform_variable_replacements(
-    input: str, history: list[dict]=[], variables: dict | None ={}
+    input: str, history: list[dict] | None = None, variables: dict | None = None
 ) -> str:
     """Perform variable replacements on the input string and in a chat log."""
+    if history is None:
+        history = []
+    if variables is None:
+        variables = {}
     result = input
 
     def replace_all(input: str) -> str:
         result = input
-        if variables:
-            for entry in variables:
-                result = result.replace(f"{{{entry}}}", variables[entry])
+        for k, v in variables.items():
+            result = result.replace(f"{{{k}}}", v)
         return result
 
     result = replace_all(result)
-    for i in range(len(history)):
-        entry = history[i]
+    for i, entry in enumerate(history):
         if entry.get("role") == "system":
-            history[i]["content"] = replace_all(entry.get("content") or "")
+            entry["content"] = replace_all(entry.get("content") or "")
 
     return result
 
@@ -59,3 +66,49 @@ def dict_has_keys_with_types(
             return False
     return True
 
+
+def get_llm_cache(llmnm, txt, history, genconf):
+    hasher = xxhash.xxh64()
+    hasher.update(str(llmnm).encode("utf-8"))
+    hasher.update(str(txt).encode("utf-8"))
+    hasher.update(str(history).encode("utf-8"))
+    hasher.update(str(genconf).encode("utf-8"))
+
+    k = hasher.hexdigest()
+    bin = REDIS_CONN.get(k)
+    if not bin:
+        return
+    return bin
+
+
+def set_llm_cache(llmnm, txt, v, history, genconf):
+    hasher = xxhash.xxh64()
+    hasher.update(str(llmnm).encode("utf-8"))
+    hasher.update(str(txt).encode("utf-8"))
+    hasher.update(str(history).encode("utf-8"))
+    hasher.update(str(genconf).encode("utf-8"))
+
+    k = hasher.hexdigest()
+    REDIS_CONN.set(k, v.encode("utf-8"), 24*3600)
+
+
+def get_embed_cache(llmnm, txt):
+    hasher = xxhash.xxh64()
+    hasher.update(str(llmnm).encode("utf-8"))
+    hasher.update(str(txt).encode("utf-8"))
+
+    k = hasher.hexdigest()
+    bin = REDIS_CONN.get(k)
+    if not bin:
+        return
+    return np.array(json.loads(bin))
+
+
+def set_embed_cache(llmnm, txt, arr):
+    hasher = xxhash.xxh64()
+    hasher.update(str(llmnm).encode("utf-8"))
+    hasher.update(str(txt).encode("utf-8"))
+
+    k = hasher.hexdigest()
+    arr = json.dumps(arr.tolist() if isinstance(arr, np.ndarray) else arr)
+    REDIS_CONN.set(k, arr.encode("utf-8"), 24*3600)

@@ -1,14 +1,23 @@
-import { DSLComponents } from '@/interfaces/database/flow';
+import {
+  DSLComponents,
+  ICategorizeItemResult,
+  RAGFlowNodeType,
+} from '@/interfaces/database/flow';
 import { removeUselessFieldsFromValues } from '@/utils/form';
+import { Edge, Node, Position, XYPosition } from '@xyflow/react';
 import { FormInstance, FormListFieldData } from 'antd';
 import { humanId } from 'human-id';
 import { curry, get, intersectionWith, isEqual, sample } from 'lodash';
 import pipe from 'lodash/fp/pipe';
 import isObject from 'lodash/isObject';
-import { Edge, Node, Position } from 'reactflow';
 import { v4 as uuidv4 } from 'uuid';
-import { CategorizeAnchorPointPositions, NodeMap, Operator } from './constant';
-import { ICategorizeItemResult, IPosition, NodeData } from './interface';
+import {
+  CategorizeAnchorPointPositions,
+  NoDebugOperatorsList,
+  NodeMap,
+  Operator,
+} from './constant';
+import { IPosition } from './interface';
 
 const buildEdges = (
   operatorIds: string[],
@@ -117,32 +126,37 @@ const buildOperatorParams = (operatorName: string) =>
 
 // construct a dsl based on the node information of the graph
 export const buildDslComponentsByGraph = (
-  nodes: Node<NodeData>[],
+  nodes: RAGFlowNodeType[],
   edges: Edge[],
+  oldDslComponents: DSLComponents,
 ): DSLComponents => {
   const components: DSLComponents = {};
 
-  nodes.forEach((x) => {
-    const id = x.id;
-    const operatorName = x.data.label;
-    components[id] = {
-      obj: {
-        component_name: operatorName,
-        params:
-          buildOperatorParams(operatorName)(
-            x.data.form as Record<string, unknown>,
-          ) ?? {},
-      },
-      downstream: buildComponentDownstreamOrUpstream(edges, id, true),
-      upstream: buildComponentDownstreamOrUpstream(edges, id, false),
-    };
-  });
+  nodes
+    ?.filter((x) => x.data.label !== Operator.Note)
+    .forEach((x) => {
+      const id = x.id;
+      const operatorName = x.data.label;
+      components[id] = {
+        obj: {
+          ...(oldDslComponents[id]?.obj ?? {}),
+          component_name: operatorName,
+          params:
+            buildOperatorParams(operatorName)(
+              x.data.form as Record<string, unknown>,
+            ) ?? {},
+        },
+        downstream: buildComponentDownstreamOrUpstream(edges, id, true),
+        upstream: buildComponentDownstreamOrUpstream(edges, id, false),
+        parent_id: x?.parentId,
+      };
+    });
 
   return components;
 };
 
 export const receiveMessageError = (res: any) =>
-  res && (res?.response.status !== 200 || res?.data?.retcode !== 0);
+  res && (res?.response.status !== 200 || res?.data?.code !== 0);
 
 // Replace the id in the object with text
 export const replaceIdWithText = (
@@ -182,11 +196,12 @@ export const buildNewPositionMap = (
   const intersectionKeys = intersectionWith(
     previousKeys,
     currentKeys,
-    (categoryDataKey, positionMapKey) => categoryDataKey === positionMapKey,
+    (categoryDataKey: string, positionMapKey: string) =>
+      categoryDataKey === positionMapKey,
   );
   // difference set
   const currentDifferenceKeys = currentKeys.filter(
-    (x) => !intersectionKeys.some((y) => y === x),
+    (x) => !intersectionKeys.some((y: string) => y === x),
   );
   const newPositionMap = currentDifferenceKeys.reduce<
     Record<string, IPosition>
@@ -233,4 +248,144 @@ export const getOtherFieldValues = (
 
 export const generateSwitchHandleText = (idx: number) => {
   return `Case ${idx + 1}`;
+};
+
+export const getNodeDragHandle = (nodeType?: string) => {
+  return nodeType === Operator.Note ? '.note-drag-handle' : undefined;
+};
+
+const splitName = (name: string) => {
+  const names = name.split('_');
+  const type = names.at(0);
+  const index = Number(names.at(-1));
+
+  return { type, index };
+};
+
+export const generateNodeNamesWithIncreasingIndex = (
+  name: string,
+  nodes: RAGFlowNodeType[],
+) => {
+  const templateNameList = nodes
+    .filter((x) => {
+      const temporaryName = x.data.name;
+
+      const { type, index } = splitName(temporaryName);
+
+      return (
+        temporaryName.match(/_/g)?.length === 1 &&
+        type === name &&
+        !isNaN(index)
+      );
+    })
+    .map((x) => {
+      const temporaryName = x.data.name;
+      const { index } = splitName(temporaryName);
+
+      return {
+        idx: index,
+        name: temporaryName,
+      };
+    })
+    .sort((a, b) => a.idx - b.idx);
+
+  let index: number = 0;
+  for (let i = 0; i < templateNameList.length; i++) {
+    const idx = templateNameList[i]?.idx;
+    const nextIdx = templateNameList[i + 1]?.idx;
+    if (idx + 1 !== nextIdx) {
+      index = idx + 1;
+      break;
+    }
+  }
+
+  return `${name}_${index}`;
+};
+
+export const duplicateNodeForm = (nodeData?: RAGFlowNodeType['data']) => {
+  const form: Record<string, any> = { ...(nodeData?.form ?? {}) };
+
+  // Delete the downstream node corresponding to the to field of the Categorize operator
+  if (nodeData?.label === Operator.Categorize) {
+    form.category_description = Object.keys(form.category_description).reduce<
+      Record<string, Record<string, any>>
+    >((pre, cur) => {
+      pre[cur] = {
+        ...form.category_description[cur],
+        to: undefined,
+      };
+      return pre;
+    }, {});
+  }
+
+  // Delete the downstream nodes corresponding to the yes and no fields of the Relevant operator
+  if (nodeData?.label === Operator.Relevant) {
+    form.yes = undefined;
+    form.no = undefined;
+  }
+
+  return {
+    ...(nodeData ?? { label: '' }),
+    form,
+  };
+};
+
+export const getDrawerWidth = () => {
+  return window.innerWidth > 1278 ? '40%' : 470;
+};
+
+export const needsSingleStepDebugging = (label: string) => {
+  return !NoDebugOperatorsList.some((x) => (label as Operator) === x);
+};
+
+// Get the coordinates of the node relative to the Iteration node
+export function getRelativePositionToIterationNode(
+  nodes: RAGFlowNodeType[],
+  position?: XYPosition, // relative position
+) {
+  if (!position) {
+    return;
+  }
+
+  const iterationNodes = nodes.filter(
+    (node) => node.data.label === Operator.Iteration,
+  );
+
+  for (const iterationNode of iterationNodes) {
+    const {
+      position: { x, y },
+      width,
+      height,
+    } = iterationNode;
+    const halfWidth = (width || 0) / 2;
+    if (
+      position.x >= x - halfWidth &&
+      position.x <= x + halfWidth &&
+      position.y >= y &&
+      position.y <= y + (height || 0)
+    ) {
+      return {
+        parentId: iterationNode.id,
+        position: { x: position.x - x + halfWidth, y: position.y - y },
+      };
+    }
+  }
+}
+
+export const generateDuplicateNode = (
+  position?: XYPosition,
+  label?: string,
+) => {
+  const nextPosition = {
+    x: (position?.x || 0) + 50,
+    y: (position?.y || 0) + 50,
+  };
+
+  return {
+    selected: false,
+    dragging: false,
+    id: `${label}:${humanId()}`,
+    position: nextPosition,
+    dragHandle: getNodeDragHandle(label),
+  };
 };

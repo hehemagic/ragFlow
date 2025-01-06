@@ -1,13 +1,12 @@
 import NewDocumentLink from '@/components/new-document-link';
 import SvgIcon from '@/components/svg-icon';
 import { useTranslate } from '@/hooks/common-hooks';
+import { useDownloadFile } from '@/hooks/file-manager-hooks';
 import { IFile } from '@/interfaces/database/file-manager';
-import { api_host } from '@/utils/api';
 import {
   getExtension,
   isSupportedPreviewDocumentType,
 } from '@/utils/document-util';
-import { downloadFile } from '@/utils/file-util';
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -17,7 +16,6 @@ import {
 } from '@ant-design/icons';
 import { Button, Space, Tooltip } from 'antd';
 import { useHandleDeleteFile } from '../hooks';
-import styles from './index.less';
 
 interface IProps {
   record: IFile;
@@ -43,12 +41,13 @@ const ActionCell = ({
     [documentId],
     setSelectedRowKeys,
   );
+  const { downloadFile, loading } = useDownloadFile();
   const extension = getExtension(record.name);
   const isKnowledgeBase = record.source_type === 'knowledgebase';
 
   const onDownloadDocument = () => {
     downloadFile({
-      url: `${api_host}/file/get/${documentId}`,
+      id: documentId,
       filename: record.name,
     });
   };
@@ -74,11 +73,7 @@ const ActionCell = ({
     <Space size={0}>
       {isKnowledgeBase || (
         <Tooltip title={t('addToKnowledge')}>
-          <Button
-            type="text"
-            className={styles.iconButton}
-            onClick={onShowConnectToKnowledgeModal}
-          >
+          <Button type="text" onClick={onShowConnectToKnowledgeModal}>
             <LinkOutlined size={20} />
           </Button>
         </Tooltip>
@@ -86,12 +81,7 @@ const ActionCell = ({
 
       {isKnowledgeBase || (
         <Tooltip title={t('rename', { keyPrefix: 'common' })}>
-          <Button
-            type="text"
-            disabled={beingUsed}
-            onClick={onShowRenameModal}
-            className={styles.iconButton}
-          >
+          <Button type="text" disabled={beingUsed} onClick={onShowRenameModal}>
             <EditOutlined size={20} />
           </Button>
         </Tooltip>
@@ -102,7 +92,6 @@ const ActionCell = ({
             type="text"
             disabled={beingUsed}
             onClick={onShowMoveFileModal}
-            className={styles.iconButton}
           >
             <SvgIcon name={`move`} width={16}></SvgIcon>
           </Button>
@@ -110,12 +99,7 @@ const ActionCell = ({
       )}
       {isKnowledgeBase || (
         <Tooltip title={t('delete', { keyPrefix: 'common' })}>
-          <Button
-            type="text"
-            disabled={beingUsed}
-            onClick={handleRemoveFile}
-            className={styles.iconButton}
-          >
+          <Button type="text" disabled={beingUsed} onClick={handleRemoveFile}>
             <DeleteOutlined size={20} />
           </Button>
         </Tooltip>
@@ -125,8 +109,8 @@ const ActionCell = ({
           <Button
             type="text"
             disabled={beingUsed}
+            loading={loading}
             onClick={onDownloadDocument}
-            className={styles.iconButton}
           >
             <DownloadOutlined size={20} />
           </Button>
@@ -139,7 +123,7 @@ const ActionCell = ({
           color="black"
         >
           <Tooltip title={t('preview')}>
-            <Button type="text" className={styles.iconButton}>
+            <Button type="text">
               <EyeOutlined size={20} />
             </Button>
           </Tooltip>

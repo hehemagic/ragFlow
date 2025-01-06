@@ -14,7 +14,9 @@
 #  limitations under the License.
 #
 from datetime import datetime
+
 import peewee
+
 from api.db.db_models import DB, API4Conversation, APIToken, Dialog
 from api.db.services.common_service import CommonService
 from api.utils import current_timestamp, datetime_format
@@ -39,14 +41,33 @@ class API4ConversationService(CommonService):
 
     @classmethod
     @DB.connection_context()
+    def get_list(cls, dialog_id, tenant_id,
+                 page_number, items_per_page,
+                 orderby, desc, id, user_id=None):
+        sessions = cls.model.select().where(cls.model.dialog_id == dialog_id)
+        if id:
+            sessions = sessions.where(cls.model.id == id)
+        if user_id:
+            sessions = sessions.where(cls.model.user_id == user_id)
+        if desc:
+            sessions = sessions.order_by(cls.model.getter_by(orderby).desc())
+        else:
+            sessions = sessions.order_by(cls.model.getter_by(orderby).asc())
+        sessions = sessions.paginate(page_number, items_per_page)
+
+        return list(sessions.dicts())
+
+    @classmethod
+    @DB.connection_context()
     def append_message(cls, id, conversation):
         cls.update_by_id(id, conversation)
-        return cls.model.update(round=cls.model.round + 1).where(cls.model.id==id).execute()
+        return cls.model.update(round=cls.model.round + 1).where(cls.model.id == id).execute()
 
     @classmethod
     @DB.connection_context()
     def stats(cls, tenant_id, from_date, to_date, source=None):
-        if len(to_date) == 10: to_date += " 23:59:59"
+        if len(to_date) == 10:
+            to_date += " 23:59:59"
         return cls.model.select(
             cls.model.create_date.truncate("day").alias("dt"),
             peewee.fn.COUNT(
@@ -61,7 +82,7 @@ class API4ConversationService(CommonService):
                 cls.model.round).alias("round"),
             peewee.fn.SUM(
                 cls.model.thumb_up).alias("thumb_up")
-        ).join(Dialog, on=(cls.model.dialog_id == Dialog.id & Dialog.tenant_id == tenant_id)).where(
+        ).join(Dialog, on=((cls.model.dialog_id == Dialog.id) & (Dialog.tenant_id == tenant_id))).where(
             cls.model.create_date >= from_date,
             cls.model.create_date <= to_date,
             cls.model.source == source

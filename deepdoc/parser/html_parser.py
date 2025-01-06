@@ -16,10 +16,12 @@ import readability
 import html_text
 import chardet
 
+
 def get_encoding(file):
     with open(file,'rb') as f:
         tmp = chardet.detect(f.read())
         return tmp['encoding']
+
 
 class RAGFlowHtmlParser:
     def __call__(self, fnm, binary=None):
@@ -35,7 +37,7 @@ class RAGFlowHtmlParser:
     ## 使用工具提取html的正文和标题
     @classmethod
     def parser_txt(cls, txt):
-        if type(txt) != str:
+        if not isinstance(txt, str):
             raise TypeError("txt type should be str!")
         html_doc = readability.Document(txt)
         title = html_doc.title()

@@ -1,13 +1,15 @@
 import MessageItem from '@/components/message-item';
-import DocumentPreviewer from '@/components/pdf-previewer';
 import { MessageType } from '@/constants/chat';
 import { useTranslate } from '@/hooks/common-hooks';
-import { useClickDrawer, useGetFileIcon } from '@/pages/chat/hooks';
+import { useGetFileIcon } from '@/pages/chat/hooks';
 import { buildMessageItemReference } from '@/pages/chat/utils';
-import { Button, Drawer, Flex, Input, Spin } from 'antd';
+import { Button, Flex, Input, Spin } from 'antd';
 
 import { useSendNextMessage } from './hooks';
 
+import PdfDrawer from '@/components/pdf-drawer';
+import { useClickDrawer } from '@/components/pdf-drawer/hooks';
+import { useFetchFlow } from '@/hooks/flow-hooks';
 import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
 import styles from './index.less';
 
@@ -28,6 +30,7 @@ const FlowChatBox = () => {
   useGetFileIcon();
   const { t } = useTranslate('chat');
   const { data: userInfo } = useFetchUserInfo();
+  const { data: cavasInfo } = useFetchFlow();
 
   return (
     <>
@@ -46,6 +49,7 @@ const FlowChatBox = () => {
                     key={message.id}
                     nickname={userInfo.nickname}
                     avatar={userInfo.avatar}
+                    avatardialog={cavasInfo.avatar}
                     item={message}
                     reference={buildMessageItemReference(
                       { message: derivedMessages, reference },
@@ -79,19 +83,12 @@ const FlowChatBox = () => {
           onChange={handleInputChange}
         />
       </Flex>
-      <Drawer
-        title="Document Previewer"
-        onClose={hideModal}
-        open={visible}
-        width={'50vw'}
-        mask={false}
-      >
-        <DocumentPreviewer
-          documentId={documentId}
-          chunk={selectedChunk}
-          visible={visible}
-        ></DocumentPreviewer>
-      </Drawer>
+      <PdfDrawer
+        visible={visible}
+        hideModal={hideModal}
+        documentId={documentId}
+        chunk={selectedChunk}
+      ></PdfDrawer>
     </>
   );
 };

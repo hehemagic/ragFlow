@@ -13,8 +13,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import re
 import os
+from concurrent.futures import ThreadPoolExecutor
+
 from flask_login import current_user
 from peewee import fn
 
@@ -26,7 +29,7 @@ from api.db.services.common_service import CommonService
 from api.db.services.document_service import DocumentService
 from api.db.services.file2document_service import File2DocumentService
 from api.utils import get_uuid
-from api.utils.file_utils import filename_type, thumbnail
+from api.utils.file_utils import filename_type, thumbnail_img
 from rag.utils.storage_factory import STORAGE_IMPL
 
 
@@ -82,7 +85,8 @@ class FileService(CommonService):
                .join(Document, on=(File2Document.document_id == Document.id))
                .join(Knowledgebase, on=(Knowledgebase.id == Document.kb_id))
                .where(cls.model.id == file_id))
-        if not kbs: return []
+        if not kbs:
+            return []
         kbs_info_list = []
         for kb in list(kbs.dicts()):
             kbs_info_list.append({"kb_id": kb['id'], "kb_name": kb['name']})
@@ -272,8 +276,8 @@ class FileService(CommonService):
                 cls.delete_folder_by_pf_id(user_id, file.id)
             return cls.model.delete().where((cls.model.tenant_id == user_id)
                                             & (cls.model.id == folder_id)).execute(),
-        except Exception as e:
-            print(e)
+        except Exception:
+            logging.exception("delete_folder_by_pf_id")
             raise RuntimeError("Database error (File retrieval)!")
 
     @classmethod
@@ -301,7 +305,8 @@ class FileService(CommonService):
     @classmethod
     @DB.connection_context()
     def add_file_from_kb(cls, doc, kb_folder_id, tenant_id):
-        for _ in File2DocumentService.get_by_document_id(doc["id"]): return
+        for _ in File2DocumentService.get_by_document_id(doc["id"]):
+            return
         file = {
             "id": get_uuid(),
             "parent_id": kb_folder_id,
@@ -321,8 +326,8 @@ class FileService(CommonService):
     def move_file(cls, file_ids, folder_id):
         try:
             cls.filter_update((cls.model.id << file_ids, ), { 'parent_id': folder_id })
-        except Exception as e:
-            print(e)
+        except Exception:
+            logging.exception("move_file")
             raise RuntimeError("Database error (File move)!")
 
     @classmethod
@@ -342,7 +347,9 @@ class FileService(CommonService):
                 MAX_FILE_NUM_PER_USER = int(os.environ.get('MAX_FILE_NUM_PER_USER', 0))
                 if MAX_FILE_NUM_PER_USER > 0 and DocumentService.get_doc_count(kb.tenant_id) >= MAX_FILE_NUM_PER_USER:
                     raise RuntimeError("Exceed the maximum file number of a free user!")
-                
+                if len(file.filename) >= 128:
+                        raise RuntimeError("Exceed the maximum length of file name!")
+
                 filename = duplicate_name(
                     DocumentService.query,
                     name=file.filename,
@@ -356,26 +363,27 @@ class FileService(CommonService):
                     location += "_"
                 blob = file.read()
                 STORAGE_IMPL.put(kb.id, location, blob)
+
+                doc_id = get_uuid()
+
+                img = thumbnail_img(filename, blob)
+                thumbnail_location = ''
+                if img is not None:
+                    thumbnail_location = f'thumbnail_{doc_id}.png'
+                    STORAGE_IMPL.put(kb.id, thumbnail_location, img)
+
                 doc = {
-                    "id": get_uuid(),
+                    "id": doc_id,
                     "kb_id": kb.id,
-                    "parser_id": kb.parser_id,
+                    "parser_id": self.get_parser(filetype, filename, kb.parser_id),
                     "parser_config": kb.parser_config,
                     "created_by": user_id,
                     "type": filetype,
                     "name": filename,
                     "location": location,
                     "size": len(blob),
-                    "thumbnail": thumbnail(filename, blob)
+                    "thumbnail": thumbnail_location
                 }
-                if doc["type"] == FileType.VISUAL:
-                    doc["parser_id"] = ParserType.PICTURE.value
-                if doc["type"] == FileType.AURAL:
-                    doc["parser_id"] = ParserType.AUDIO.value
-                if re.search(r"\.(ppt|pptx|pages)$", filename):
-                    doc["parser_id"] = ParserType.PRESENTATION.value
-                if re.search(r"\.(eml)$", filename):
-                    doc["parser_id"] = ParserType.EMAIL.value
                 DocumentService.insert(doc)
 
                 FileService.add_file_from_kb(doc, kb_folder["id"], kb.tenant_id)
@@ -384,3 +392,50 @@ class FileService(CommonService):
                 err.append(file.filename + ": " + str(e))
 
         return err, files
+
+    @staticmethod
+    def parse_docs(file_objs, user_id):
+        from rag.app import presentation, picture, naive, audio, email
+
+        def dummy(prog=None, msg=""):
+            pass
+
+        FACTORY = {
+            ParserType.PRESENTATION.value: presentation,
+            ParserType.PICTURE.value: picture,
+            ParserType.AUDIO.value: audio,
+            ParserType.EMAIL.value: email
+        }
+        parser_config = {"chunk_token_num": 16096, "delimiter": "\n!?;。；！？", "layout_recognize": False}
+        exe = ThreadPoolExecutor(max_workers=12)
+        threads = []
+        for file in file_objs:
+            kwargs = {
+                "lang": "English",
+                "callback": dummy,
+                "parser_config": parser_config,
+                "from_page": 0,
+                "to_page": 100000,
+                "tenant_id": user_id
+            }
+            filetype = filename_type(file.filename)
+            blob = file.read()
+            threads.append(exe.submit(FACTORY.get(FileService.get_parser(filetype, file.filename, ""), naive).chunk, file.filename, blob, **kwargs))
+
+        res = []
+        for th in threads:
+            res.append("\n".join([ck["content_with_weight"] for ck in th.result()]))
+
+        return "\n\n".join(res)
+
+    @staticmethod
+    def get_parser(doc_type, filename, default):
+        if doc_type == FileType.VISUAL:
+            return ParserType.PICTURE.value
+        if doc_type == FileType.AURAL:
+            return ParserType.AUDIO.value
+        if re.search(r"\.(ppt|pptx|pages)$", filename):
+            return ParserType.PRESENTATION.value
+        if re.search(r"\.(eml)$", filename):
+            return ParserType.EMAIL.value
+        return default

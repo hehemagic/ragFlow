@@ -4,6 +4,8 @@ export enum KnowledgeRouteKey {
   Configuration = 'configuration',
 }
 
+export const DatasetBaseKey = 'dataset';
+
 export enum RunningStatus {
   UNSTART = '0', // need to run
   RUNNING = '1', // need to cancel
@@ -54,4 +56,9 @@ export enum LlmModelType {
 export enum KnowledgeSearchParams {
   DocumentId = 'doc_id',
   KnowledgeId = 'id',
+}
+
+export enum DocumentType {
+  Virtual = 'virtual',
+  Visual = 'visual',
 }

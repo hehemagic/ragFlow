@@ -1,11 +1,9 @@
 import { Authorization } from '@/constants/authorization';
 import { MessageType } from '@/constants/chat';
 import { LanguageTranslationMap } from '@/constants/common';
-import { Pagination } from '@/interfaces/common';
 import { ResponseType } from '@/interfaces/database/base';
 import { IAnswer, Message } from '@/interfaces/database/chat';
 import { IKnowledgeFile } from '@/interfaces/database/knowledge';
-import { IChangeParserConfigRequestBody } from '@/interfaces/request/document';
 import { IClientConversation, IMessage } from '@/pages/chat/interface';
 import api from '@/utils/api';
 import { getAuthorization } from '@/utils/authorization-util';
@@ -14,6 +12,7 @@ import { PaginationProps, message } from 'antd';
 import { FormInstance } from 'antd/lib';
 import axios from 'axios';
 import { EventSourceParserStream } from 'eventsource-parser/stream';
+import { omit } from 'lodash';
 import {
   ChangeEventHandler,
   useCallback,
@@ -23,44 +22,10 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'umi';
 import { v4 as uuid } from 'uuid';
-import { useSetModalState, useTranslate } from './common-hooks';
-import { useSetDocumentParser } from './document-hooks';
+import { useTranslate } from './common-hooks';
 import { useSetPaginationParams } from './route-hook';
-import { useOneNamespaceEffectsLoading } from './store-hooks';
 import { useFetchTenantInfo, useSaveSetting } from './user-setting-hooks';
-
-export const useChangeDocumentParser = (documentId: string) => {
-  const setDocumentParser = useSetDocumentParser();
-
-  const {
-    visible: changeParserVisible,
-    hideModal: hideChangeParserModal,
-    showModal: showChangeParserModal,
-  } = useSetModalState();
-  const loading = useOneNamespaceEffectsLoading('kFModel', [
-    'document_change_parser',
-  ]);
-
-  const onChangeParserOk = useCallback(
-    async (parserId: string, parserConfig: IChangeParserConfigRequestBody) => {
-      const ret = await setDocumentParser(parserId, documentId, parserConfig);
-      if (ret === 0) {
-        hideChangeParserModal();
-      }
-    },
-    [hideChangeParserModal, setDocumentParser, documentId],
-  );
-
-  return {
-    changeParserLoading: loading,
-    onChangeParserOk,
-    changeParserVisible,
-    hideChangeParserModal,
-    showChangeParserModal,
-  };
-};
 
 export const useSetSelectedRecord = <T = IKnowledgeFile>() => {
   const [currentRecord, setCurrentRecord] = useState<T>({} as T);
@@ -170,28 +135,6 @@ export const useGetPagination = () => {
   };
 };
 
-export const useSetPagination = (namespace: string) => {
-  const dispatch = useDispatch();
-
-  const setPagination = useCallback(
-    (pageNumber = 1, pageSize?: number) => {
-      const pagination: Pagination = {
-        current: pageNumber,
-      } as Pagination;
-      if (pageSize) {
-        pagination.pageSize = pageSize;
-      }
-      dispatch({
-        type: `${namespace}/setPagination`,
-        payload: pagination,
-      });
-    },
-    [dispatch, namespace],
-  );
-
-  return setPagination;
-};
-
 export interface AppConf {
   appName: string;
 }
@@ -216,14 +159,22 @@ export const useSendMessageWithSse = (
 ) => {
   const [answer, setAnswer] = useState<IAnswer>({} as IAnswer);
   const [done, setDone] = useState(true);
+  const timer = useRef<any>();
 
   const resetAnswer = useCallback(() => {
-    setAnswer({} as IAnswer);
+    if (timer.current) {
+      clearTimeout(timer.current);
+    }
+    timer.current = setTimeout(() => {
+      setAnswer({} as IAnswer);
+      clearTimeout(timer.current);
+    }, 1000);
   }, []);
 
   const send = useCallback(
     async (
       body: any,
+      controller?: AbortController,
     ): Promise<{ response: Response; data: ResponseType } | undefined> => {
       try {
         setDone(false);
@@ -234,6 +185,7 @@ export const useSendMessageWithSse = (
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(body),
+          signal: controller?.signal,
         });
 
         const res = response.clone().json();
@@ -249,6 +201,7 @@ export const useSendMessageWithSse = (
             const { done, value } = x;
             if (done) {
               console.info('done');
+              resetAnswer();
               break;
             }
             try {
@@ -268,13 +221,16 @@ export const useSendMessageWithSse = (
         }
         console.info('done?');
         setDone(true);
+        resetAnswer();
         return { data: await res, response };
       } catch (e) {
         setDone(true);
+        resetAnswer();
+
         console.warn(e);
       }
     },
-    [url],
+    [url, resetAnswer],
   );
 
   return { send, answer, done, setDone, resetAnswer };
@@ -293,8 +249,8 @@ export const useSpeechWithSse = (url: string = api.tts) => {
       });
       try {
         const res = await response.clone().json();
-        if (res?.retcode !== 0) {
-          message.error(res?.retmsg);
+        if (res?.code !== 0) {
+          message.error(res?.message);
         }
       } catch (error) {
         console.warn('🚀 ~ error:', error);
@@ -381,6 +337,7 @@ export const useSelectDerivedMessages = () => {
           }),
           prompt: answer.prompt,
           audio_binary: answer.audio_binary,
+          ...omit(answer, 'reference'),
         },
       ];
     });
@@ -601,4 +558,25 @@ export const useHandleChunkMethodSelectChange = (form: FormInstance) => {
   );
 
   return handleChange;
+};
+
+// reset form fields when modal is form, closed
+export const useResetFormOnCloseModal = ({
+  form,
+  visible,
+}: {
+  form: FormInstance;
+  visible?: boolean;
+}) => {
+  const prevOpenRef = useRef<boolean>();
+  useEffect(() => {
+    prevOpenRef.current = visible;
+  }, [visible]);
+  const prevOpen = prevOpenRef.current;
+
+  useEffect(() => {
+    if (!visible && prevOpen) {
+      form.resetFields();
+    }
+  }, [form, prevOpen, visible]);
 };

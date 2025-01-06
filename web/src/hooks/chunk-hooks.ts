@@ -45,9 +45,8 @@ export const useFetchNextChunkList = (): ResponseGetType<{
       debouncedSearchString,
       available,
     ],
-
-    initialData: { data: [], total: 0, documentInfo: {} },
-    // placeholderData: keepPreviousData,
+    placeholderData: (previousData) =>
+      previousData ?? { data: [], total: 0, documentInfo: {} }, // https://github.com/TanStack/query/issues/8183
     gcTime: 0,
     queryFn: async () => {
       const { data } = await kbService.chunk_list({
@@ -57,7 +56,7 @@ export const useFetchNextChunkList = (): ResponseGetType<{
         available_int: available,
         keywords: searchString,
       });
-      if (data.retcode === 0) {
+      if (data.code === 0) {
         const res = data.data;
         return {
           data: res.chunks,
@@ -126,11 +125,11 @@ export const useDeleteChunk = () => {
     mutationKey: ['deleteChunk'],
     mutationFn: async (params: { chunkIds: string[]; doc_id: string }) => {
       const { data } = await kbService.rm_chunk(params);
-      if (data.retcode === 0) {
+      if (data.code === 0) {
         setPaginationParams(1);
         queryClient.invalidateQueries({ queryKey: ['fetchChunkList'] });
       }
-      return data?.retcode;
+      return data?.code;
     },
   });
 
@@ -152,11 +151,11 @@ export const useSwitchChunk = () => {
       doc_id: string;
     }) => {
       const { data } = await kbService.switch_chunk(params);
-      if (data.retcode === 0) {
+      if (data.code === 0) {
         message.success(t('message.modified'));
         queryClient.invalidateQueries({ queryKey: ['fetchChunkList'] });
       }
-      return data?.retcode;
+      return data?.code;
     },
   });
 
@@ -179,11 +178,11 @@ export const useCreateChunk = () => {
         service = kbService.set_chunk;
       }
       const { data } = await service(payload);
-      if (data.retcode === 0) {
+      if (data.code === 0) {
         message.success(t('message.created'));
         queryClient.invalidateQueries({ queryKey: ['fetchChunkList'] });
       }
-      return data?.retcode;
+      return data?.code;
     },
   });
 

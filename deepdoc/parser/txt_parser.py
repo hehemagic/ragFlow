@@ -10,30 +10,21 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-
-from rag.nlp import find_codec,num_tokens_from_string
 import re
+
+from deepdoc.parser.utils import get_text
+from rag.nlp import num_tokens_from_string
+
 
 class RAGFlowTxtParser:
     def __call__(self, fnm, binary=None, chunk_token_num=128, delimiter="\n!?;。；！？"):
-        txt = ""
-        if binary:
-            ## 对应编码格式
-            encoding = find_codec(binary)
-            txt = binary.decode(encoding, errors="ignore")
-        else:
-            with open(fnm, "r") as f:
-                while True:
-                    l = f.readline()
-                    if not l:
-                        break
-                    txt += l
+        txt = get_text(fnm, binary)
         return self.parser_txt(txt, chunk_token_num, delimiter)
 
     @classmethod
     ## 按照分隔符简单切分
     def parser_txt(cls, txt, chunk_token_num=128, delimiter="\n!?;。；！？"):
-        if type(txt) != str:
+        if not isinstance(txt, str):
             raise TypeError("txt type should be str!")
         cks = [""]
         tk_nums = [0]
@@ -41,8 +32,6 @@ class RAGFlowTxtParser:
         def add_chunk(t):
             nonlocal cks, tk_nums, delimiter
             tnum = num_tokens_from_string(t)
-            if tnum < 8:
-                pos = ""
             if tk_nums[-1] > chunk_token_num:
                 cks.append(t)
                 tk_nums.append(tnum)
@@ -50,15 +39,20 @@ class RAGFlowTxtParser:
                 cks[-1] += t
                 tk_nums[-1] += tnum
 
-        s, e = 0, 1
-        while e < len(txt):
-            if txt[e] in delimiter:
-                add_chunk(txt[s: e + 1])
-                s = e + 1
-                e = s + 1
-            else:
-                e += 1
-        if s < e:
-            add_chunk(txt[s: e + 1])
+        dels = []
+        s = 0
+        for m in re.finditer(r"`([^`]+)`", delimiter, re.I):
+            f, t = m.span()
+            dels.append(m.group(1))
+            dels.extend(list(delimiter[s: f]))
+            s = t
+        if s < len(delimiter):
+            dels.extend(list(delimiter[s:]))
+        dels = [re.escape(d) for d in delimiter if d]
+        dels = [d for d in dels if d]
+        dels = "|".join(dels)
+        secs = re.split(r"(%s)" % dels, txt)
+        for sec in secs:
+            add_chunk(sec)
 
-        return [[c,""] for c in cks]
+        return [[c, ""] for c in cks]

@@ -2,7 +2,7 @@ export default {
   translation: {
     common: {
       delete: 'Delete',
-      deleteModalTitle: 'Are you sure delete this item?',
+      deleteModalTitle: 'Are you sure to delete this item?',
       ok: 'Yes',
       cancel: 'No',
       total: 'Total',
@@ -27,6 +27,13 @@ export default {
       close: 'Close',
       preview: 'Preview',
       move: 'Move',
+      warn: 'Warn',
+      action: 'Action',
+      s: 'S',
+      pleaseSelect: 'Please select',
+      pleaseInput: 'Please input',
+      submit: 'Submit',
+      embedIntoSite: 'Embed into webpage',
     },
     login: {
       login: 'Sign in',
@@ -55,20 +62,21 @@ export default {
       register: 'Register',
       signin: 'Sign in',
       home: 'Home',
-      setting: '用户设置',
-      logout: '登出',
+      setting: 'User settings',
+      logout: 'Log out',
       fileManager: 'File Management',
       flow: 'Agent',
       search: 'Search',
     },
     knowledgeList: {
       welcome: 'Welcome back',
-      description: 'Which knowledge base are we going to use today?',
+      description: 'Which knowledge bases will you use today?',
       createKnowledgeBase: 'Create knowledge base',
       name: 'Name',
       namePlaceholder: 'Please input name!',
       doc: 'Docs',
       searchKnowledgePlaceholder: 'Search',
+      noMoreData: `That's all. Nothing more.`,
     },
     knowledgeDetails: {
       dataset: 'Dataset',
@@ -79,7 +87,7 @@ export default {
       namePlaceholder: 'Please input name!',
       doc: 'Docs',
       datasetDescription:
-        '😉 Questions and answers can only be answered after the parsing is successful.',
+        '😉 Please wait for your file to finish parsing before starting an AI-powered chat.',
       addFile: 'Add file',
       searchFiles: 'Search your files',
       localFiles: 'Local files',
@@ -92,46 +100,46 @@ export default {
       disabled: 'Disable',
       action: 'Action',
       parsingStatus: 'Parsing Status',
-      processBeginAt: 'Process Begin At',
-      processDuration: 'Process Duration',
-      progressMsg: 'Progress Msg',
+      processBeginAt: 'Begin at',
+      processDuration: 'Duration',
+      progressMsg: 'Progress',
       testingDescription:
-        'Final step! After success, leave the rest to Infiniflow AI.',
+        'Conduct a retrieval test to check if RAGFlow can recover the intended content for the LLM.',
       similarityThreshold: 'Similarity threshold',
       similarityThresholdTip:
-        "We use hybrid similarity score to evaluate distance between two lines of text. It's weighted keywords similarity and vector cosine similarity. If the similarity between query and chunk is less than this threshold, the chunk will be filtered out.",
+        'RAGFlow employs either a combination of weighted keyword similarity and weighted vector cosine similarity, or a combination of weighted keyword similarity and weighted reranking score during retrieval. This parameter sets the threshold for similarities between the user query and chunks. Any chunk with a similarity score below this threshold will be excluded from the results.',
       vectorSimilarityWeight: 'Keywords similarity weight',
       vectorSimilarityWeightTip:
-        " We use hybrid similarity score to evaluate distance between two lines of text. It's weighted keywords similarity and vector cosine similarity or rerank score(0~1). The sum of both weights is 1.0.",
+        'This sets the weight of keyword similarity in the combined similarity score, either used with vector cosine similarity or with reranking score. The total of the two weights must equal 1.0.',
       testText: 'Test text',
-      testTextPlaceholder: 'Please input your question!',
+      testTextPlaceholder: 'Input your question here!',
       testingLabel: 'Testing',
-      similarity: 'Hybrid Similarity',
-      termSimilarity: 'Term Similarity',
-      vectorSimilarity: 'Vector Similarity',
+      similarity: 'Hybrid similarity',
+      termSimilarity: 'Term similarity',
+      vectorSimilarity: 'Vector similarity',
       hits: 'Hits',
       view: 'View',
-      filesSelected: 'Files Selected',
+      filesSelected: 'Files selected',
       upload: 'Upload',
-      run: 'Run',
-      runningStatus0: 'UNSTART',
+      run: 'Parse',
+      runningStatus0: 'UNParsed',
       runningStatus1: 'Parsing',
       runningStatus2: 'CANCEL',
       runningStatus3: 'SUCCESS',
       runningStatus4: 'FAIL',
       pageRanges: 'Page Ranges',
       pageRangesTip:
-        'page ranges: Define the page ranges that need to be parsed. The pages that not included in these ranges will be ignored.',
+        'Range of pages to be parsed; pages outside this range will not be processed.',
       fromPlaceholder: 'from',
       fromMessage: 'Missing start page number',
       toPlaceholder: 'to',
-      toMessage: 'Missing end page number(excluded)',
+      toMessage: 'Missing end page number (excluded)',
       layoutRecognize: 'Layout recognition',
       layoutRecognizeTip:
-        'Use visual models for layout analysis to better identify document structure, find where the titles, text blocks, images, and tables are. Without this feature, only the plain text of the PDF can be obtained.',
+        'Use visual models for layout analysis to better understand the structure of the document and effectively locate document titles, text blocks, images, and tables. If disabled, only the plain text in the PDF will be retrieved.',
       taskPageSize: 'Task page size',
       taskPageSizeMessage: 'Please input your task page size!',
-      taskPageSizeTip: `If using layout recognize, the PDF file will be split into groups of successive. Layout analysis will be performed parallelly between groups to increase the processing speed. The 'Task page size' determines the size of groups. The larger the page size is, the lower the chance of splitting continuous text between pages into different chunks.`,
+      taskPageSizeTip: `During layout recognition, a PDF file is split into chunks and processed in parallel to increase processing speed. This parameter sets the size of each chunk. A larger chunk size reduces the likelihood of splitting continuous text between pages.`,
       addPage: 'Add page',
       greaterThan: 'The current value must be greater than to!',
       greaterThanPrevious:
@@ -144,16 +152,25 @@ export default {
       chunk: 'Chunk',
       bulk: 'Bulk',
       cancel: 'Cancel',
-      rerankModel: 'Rerank Model',
+      rerankModel: 'Rerank model',
       rerankPlaceholder: 'Please select',
-      rerankTip: `If it's empty. It uses embeddings of query and chunks to compuste vector cosine similarity. Otherwise, it uses rerank score in place of  vector cosine similarity.`,
+      rerankTip: `If left empty, RAGFlow will use a combination of weighted keyword similarity and weighted vector cosine similarity; if a rerank model is selected, a weighted reranking score will replace the weighted vector cosine similarity.`,
       topK: 'Top-K',
       topKTip: `K chunks will be fed into rerank models.`,
       delimiter: `Delimiter`,
+      delimiterTip:
+        'A delimiter or separator can consist of one or multiple special characters. If it is multiple characters, ensure they are enclosed in backticks( ``). For example, if you configure your delimiters like this: \n`##`;, then your texts will be separated at line breaks, double hash symbols (##), or semicolons.',
+      html4excel: 'Excel to HTML',
+      html4excelTip: `When enabled, the spreadsheet will be parsed into HTML tables, and at most 256 rows for one table. Otherwise, it will be parsed into key-value pairs by row.`,
+      autoKeywords: 'Auto-keyword',
+      autoKeywordsTip: `Automatically extract N keywords for each chunk to increase their ranking for queries containing those keywords. You can check or update the added keywords for a chunk from the chunk list. Be aware that extra tokens will be consumed by the LLM specified in 'System model settings'.`,
+      autoQuestions: 'Auto-question',
+      autoQuestionsTip: `Automatically extract N questions for each chunk to increase their ranking for queries containing those questions. You can check or update the added questions for a chunk from the chunk list. This feature will not disrupt the chunking process if an error occurs, except that it may add an empty result to the original chunk. Be aware that extra tokens will be consumed by the LLM specified in 'System model settings'.`,
+      redo: 'Do you want to clear the existing {{chunkNum}} chunks?',
     },
     knowledgeConfiguration: {
       titleDescription:
-        'Update your knowledge base details especially parsing method here.',
+        'Update your knowledge base configuration here, particularly the chunk method.',
       name: 'Knowledge base name',
       photo: 'Knowledge base photo',
       description: 'Description',
@@ -165,13 +182,13 @@ export default {
       chunkTokenNumber: 'Chunk token number',
       chunkTokenNumberMessage: 'Chunk token number is required',
       embeddingModelTip:
-        "The embedding model used to embedding chunks. It's unchangable once the knowledgebase has chunks. You need to delete all the chunks if you want to change it.",
+        'The model that converts chunks into embeddings. It cannot be changed once the knowledge base has chunks. To switch to a different embedding model, you must delete all existing chunks in the knowledge base.',
       permissionsTip:
-        "If the permission is 'Team', all the team member can manipulate the knowledgebase.",
+        "If set to 'Team', all team members will be able to manage the knowledge base.",
       chunkTokenNumberTip:
-        'It determine the token number of a chunk approximately.',
+        'It sets the token threshold for a chunk. A paragraph with fewer tokens than this threshold will be combined with the following paragraph until the token count exceeds the threshold, at which point a chunk is created.',
       chunkMethod: 'Chunk method',
-      chunkMethodTip: 'The instruction is at right.',
+      chunkMethodTip: 'View the tips on the right.',
       upload: 'Upload',
       english: 'English',
       chinese: 'Chinese',
@@ -181,52 +198,47 @@ export default {
       me: 'Only me',
       team: 'Team',
       cancel: 'Cancel',
-      methodTitle: 'Chunking Method Description',
+      methodTitle: 'Chunk method description',
       methodExamples: 'Examples',
       methodExamplesDescription:
-        'The following screenshots are presented to facilitate understanding.',
-      dialogueExamplesTitle: 'Dialogue Examples',
+        'The following screenshots are provided for clarity.',
+      dialogueExamplesTitle: 'Dialogue examples',
       methodEmpty:
         'This will display a visual explanation of the knowledge base categories',
       book: `<p>Supported file formats are <b>DOCX</b>, <b>PDF</b>, <b>TXT</b>.</p><p>
-      Since a book is long and not all the parts are useful, if it's a PDF,
-      please setup the <i>page ranges</i> for every book in order eliminate negative effects and save computing time for analyzing.</p>`,
+      For each book in PDF, please set the <i>page ranges</i> to remove unwanted information and reduce analysis time.</p>`,
       laws: `<p>Supported file formats are <b>DOCX</b>, <b>PDF</b>, <b>TXT</b>.</p><p>
-      Legal documents have a very rigorous writing format. We use text feature to detect split point. 
+      Legal documents typically follow a rigorous writing format. We use text feature to identify split point. 
       </p><p>
-      The chunk granularity is consistent with 'ARTICLE', and all the upper level text will be included in the chunk.
+      The chunk has a granularity consistent with 'ARTICLE', ensuring all upper level text is included in the chunk.
       </p>`,
       manual: `<p>Only <b>PDF</b> is supported.</p><p>
-      We assume manual has hierarchical section structure. We use the lowest section titles as pivots to slice documents.
-      So, the figures and tables in the same section will not be sliced apart, and chunk size might be large.
+      We assume that the manual has a hierarchical section structure, using the lowest section titles as basic unit for chunking documents. Therefore, figures and tables in the same section will not be separated, which may result in larger chunk sizes.
       </p>`,
-      naive: `<p>Supported file formats are <b>DOCX, EXCEL, PPT, IMAGE, PDF, TXT, MD, JSON, EML</b>.</p>
-      <p>This method apply the naive ways to chunk files: </p>
+      naive: `<p>Supported file formats are <b>DOCX, EXCEL, PPT, IMAGE, PDF, TXT, MD, JSON, EML, HTML</b>.</p>
+      <p>This method chunks files using a 'naive' method: </p>
       <p>
-      <li>Successive text will be sliced into pieces using vision detection model.</li>
-      <li>Next, these successive pieces are merge into chunks whose token number is no more than 'Token number'.</li></p>`,
+      <li>Use vision detection model to split the texts into smaller segments.</li>
+      <li>Then, combine adjacent segments until the token count exceeds the threshold specified by 'Chunk token number', at which point a chunk is created.</li></p>`,
       paper: `<p>Only <b>PDF</b> file is supported.</p><p>
-      If our model works well, the paper will be sliced by it's sections, like <i>abstract, 1.1, 1.2</i>, etc. </p><p>
-      The benefit of doing this is that LLM can better summarize the content of relevant sections in the paper, 
-      resulting in more comprehensive answers that help readers better understand the paper. 
-      The downside is that it increases the context of the LLM conversation and adds computational cost, 
-      so during the conversation, you can consider reducing the ‘<b>topN</b>’ setting.</p>`,
-      presentation: `<p>The supported file formats are <b>PDF</b>, <b>PPTX</b>.</p><p>
-      Every page will be treated as a chunk. And the thumbnail of every page will be stored.</p><p>
-      <i>All the PPT files you uploaded will be chunked by using this method automatically, setting-up for every PPT file is not necessary.</i></p>`,
+      Papers will be split by section, such as <i>abstract, 1.1, 1.2</i>. </p><p>
+      This approach enables the LLM to summarize the paper more effectively and to provide more comprehensive, understandable responses. 
+      However, it also increases the context for AI conversations and adds to the computational cost for the LLM. So during a conversation, consider reducing the value of ‘<b>topN</b>’.</p>`,
+      presentation: `<p>Supported file formats are <b>PDF</b>, <b>PPTX</b>.</p><p>
+      Every page in the slides is treated as a chunk, with its thumbnail image stored.</p><p>
+      <i>This chunk method is automatically applied to all uploaded PPT files, so you do not need to specify it manually.</i></p>`,
       qa: `
       <p>
       This chunk method supports <b>EXCEL</b> and <b>CSV/TXT</b> file formats.
     </p>
     <li>
-      If the file is in <b>Excel</b> format, it should consist of two columns
+      If a file is in <b>Excel</b> format, it should contain two columns
       without headers: one for questions and the other for answers, with the
       question column preceding the answer column. Multiple sheets are
-      acceptable as long as the columns are correctly structured.
+      acceptable, provided the columns are properly structured.
     </li>
     <li>
-      If the file is in <b>CSV/TXT</b> format, it must be UTF-8 encoded with TAB
-      used as the delimiter to separate questions and answers.
+      If a file is in <b>CSV/TXT</b> format, it must be UTF-8 encoded with TAB as the delimiter to separate questions and answers.
     </li>
     <p>
       <i>
@@ -235,53 +247,46 @@ export default {
       </i>
     </p>
       `,
-      resume: `<p>The supported file formats are <b>DOCX</b>, <b>PDF</b>, <b>TXT</b>.
+      resume: `<p>Supported file formats are <b>DOCX</b>, <b>PDF</b>, <b>TXT</b>.
       </p><p>
-      The résumé comes in a variety of formats, just like a person’s personality, but we often have to organize them into structured data that makes it easy to search.
-      </p><p>
-      Instead of chunking the résumé, we parse the résumé into structured data. As a HR, you can dump all the résumé you have, 
-      the you can list all the candidates that match the qualifications just by talk with <i>'RAGFlow'</i>.
+      Résumés of various forms are parsed and organized into structured data to facilitate candidate search for recruiters.
       </p>
       `,
-      table: `<p><b>EXCEL</b> and <b>CSV/TXT</b> format files are supported.</p><p>
-      Here're some tips:
+      table: `<p>Supported file formats are <b>EXCEL</b> and <b>CSV/TXT</b>.</p><p>
+      Here're some prerequisites and tips:
       <ul>
-    <li>For csv or txt file, the delimiter between columns is <em><b>TAB</b></em>.</li>
-    <li>The first line must be column headers.</li>
-    <li>Column headers must be meaningful terms in order to make our LLM understanding.
-    It's good to enumerate some synonyms using slash <i>'/'</i> to separate, and even better to
-    enumerate values using brackets like <i>'gender/sex(male, female)'</i>.<p>
-    Here are some examples for headers:<ol>
-        <li>supplier/vendor<b>'TAB'</b>color(yellow, red, brown)<b>'TAB'</b>gender/sex(male, female)<b>'TAB'</b>size(M,L,XL,XXL)</li>
-        <li>姓名/名字<b>'TAB'</b>电话/手机/微信<b>'TAB'</b>最高学历（高中，职高，硕士，本科，博士，初中，中技，中专，专科，专升本，MPA，MBA，EMBA）</li>
+    <li>For CSV or TXT file, the delimiter between columns must be <em><b>TAB</b></em>.</li>
+    <li>The first row must be column headers.</li>
+    <li>Column headers must be meaningful terms to aid your LLM's understanding.
+    It is good practice to juxtapose synonyms separated by a slash <i>'/'</i> and to enumerate values using brackets, for example: <i>'Gender/Sex (male, female)'</i>.<p>
+    Here are some examples of headers:<ol>
+        <li>supplier/vendor<b>'TAB'</b>Color (Yellow, Blue, Brown)<b>'TAB'</b>Sex/Gender (male, female)<b>'TAB'</b>size (M, L, XL, XXL)</li>
         </ol>
         </p>
     </li>
     <li>Every row in table will be treated as a chunk.</li>
     </ul>`,
       picture: `
-    <p>Image files are supported. Video is coming soon.</p><p>
-    If the picture has text in it, OCR is applied to extract the text as its text description.
+    <p>Image files are supported, with video support coming soon.</p><p>
+    This method employs an OCR model to extract texts from images.
     </p><p>
-    If the text extracted by OCR is not enough, visual LLM is used to get the descriptions.
+    If the text extracted by the OCR model is deemed insufficient, a specified visual LLM will be used to provide a description of the image.
     </p>`,
       one: `
     <p>Supported file formats are <b>DOCX, EXCEL, PDF, TXT</b>.
     </p><p>
-    For a document, it will be treated as an entire chunk, no split at all.
+    This method treats each document in its entirety as a chunk.
     </p><p>
-    If you want to summarize something that needs all the context of an article and the selected LLM's context length covers the document length, you can try this method.
+    Applicable when you require the LLM to summarize the entire document, provided it can handle that amount of context length.
     </p>`,
       knowledgeGraph: `<p>Supported file formats are <b>DOCX, EXCEL, PPT, IMAGE, PDF, TXT, MD, JSON, EML</b>
 
-<p>After files being chunked, it uses chunks to extract knowledge graph and mind map of the entire document. This method apply the naive ways to chunk files:
-Successive text will be sliced into pieces each of which is around 512 token number.</p>
-<p>Next, chunks will be transmited to LLM to extract nodes and relationships of a knowledge graph, and a mind map.</p>
-
-Mind the entiry type you need to specify.</p>`,
+<p>This approach chunks files using the 'naive'/'General' method. It splits a document into segments and then combines adjacent segments until the token count exceeds the threshold specified by 'Chunk token number', at which point a chunk is created.</p>
+<p>The chunks are then fed to the LLM to extract entities and relationships for a knowledge graph and a mind map.</p>
+<p>Ensure that you set the <b>Entity types</b>.</p>`,
       useRaptor: 'Use RAPTOR to enhance retrieval',
       useRaptorTip:
-        'Recursive Abstractive Processing for Tree-Organized Retrieval, please refer to https://huggingface.co/papers/2401.18059',
+        'Recursive Abstractive Processing for Tree-Organized Retrieval, see https://huggingface.co/papers/2401.18059 for more information.',
       prompt: 'Prompt',
       promptTip: 'LLM prompt used for summarization.',
       promptMessage: 'Prompt is required',
@@ -300,14 +305,17 @@ The above is the content you need to summarize.`,
       randomSeed: 'Random seed',
       randomSeedMessage: 'Random seed is required',
       entityTypes: 'Entity types',
+      vietnamese: 'Vietnamese',
+      pageRank: 'Page rank',
+      pageRankTip: `This increases the relevance score of the knowledge base. Its value will be added to the relevance score of all retrieved chunks from this knowledge base. Useful when you are searching within multiple knowledge bases and wanting to assign a higher pagerank score to a specific one.`,
     },
     chunk: {
       chunk: 'Chunk',
       bulk: 'Bulk',
       selectAll: 'Select All',
-      enabledSelected: 'Enable Selected',
-      disabledSelected: 'Disable Selected',
-      deleteSelected: 'Delete Selected',
+      enabledSelected: 'Enable selected',
+      disabledSelected: 'Disable selected',
+      deleteSelected: 'Delete selected',
       search: 'Search',
       all: 'All',
       enabled: 'Enabled',
@@ -319,6 +327,8 @@ The above is the content you need to summarize.`,
       ellipse: 'Ellipse',
       graph: 'Knowledge graph',
       mind: 'Mind map',
+      question: 'Question',
+      questionTip: `If there're given questions, the embedding of the chunk will be based on them.`,
     },
     chat: {
       newConversation: 'New conversation',
@@ -329,23 +339,24 @@ The above is the content you need to summarize.`,
       chat: 'Chat',
       newChat: 'New chat',
       send: 'Send',
-      sendPlaceholder: 'Message Resume Assistant...',
+      sendPlaceholder: 'Message the assistant...',
       chatConfiguration: 'Chat Configuration',
       chatConfigurationDescription:
-        ' Here, dress up a dedicated assistant for your special knowledge bases! 💕',
+        ' Set up a chat assistant dedicated to your selected knowledge bases here! 💕',
       assistantName: 'Assistant name',
       assistantNameMessage: 'Assistant name is required',
       namePlaceholder: 'e.g. Resume Jarvis',
       assistantAvatar: 'Assistant avatar',
       language: 'Language',
       emptyResponse: 'Empty response',
-      emptyResponseTip: `If nothing is retrieved with user's question in the knowledgebase, it will use this as an answer. If you want LLM comes up with its own opinion when nothing is retrieved, leave this blank.`,
-      setAnOpener: 'Set an opener',
+      emptyResponseTip: `Set this as a response if no results are retrieved from the knowledge bases for your query, or leave this field blank to allow the LLM to improvise when nothing is found.`,
+      setAnOpener: 'Opening greeting',
       setAnOpenerInitial: `Hi! I'm your assistant, what can I do for you?`,
-      setAnOpenerTip: 'How do you want to welcome your clients?',
-      knowledgeBases: 'Knowledgebases',
+      setAnOpenerTip: 'Set an opening greeting for users.',
+      knowledgeBases: 'Knowledge bases',
       knowledgeBasesMessage: 'Please select',
-      knowledgeBasesTip: 'Select knowledgebases associated.',
+      knowledgeBasesTip:
+        'Select the knowledge bases to associate with this chat assistant.',
       system: 'System',
       systemInitialValue: `You are an intelligent assistant. Please summarize the content of the knowledge base to answer the question. Please list the data in the knowledge base and answer in detail. When all knowledge base content is irrelevant to the question, your answer must include the sentence "The answer you are looking for is not found in the knowledge base!" Answers need to consider chat history.
       Here is the knowledge base:
@@ -353,18 +364,15 @@ The above is the content you need to summarize.`,
       The above is the knowledge base.`,
       systemMessage: 'Please input!',
       systemTip:
-        'Instructions you need LLM to follow when LLM answers questions, like charactor design, answer length and answer language etc.',
+        'Your prompts or instructions for the LLM, including but not limited to its role, the desired length, tone, and language of its answers.',
       topN: 'Top N',
-      topNTip: `Not all the chunks whose similarity score is above the 'simialrity threashold' will be feed to LLMs. LLM can only see these 'Top N' chunks.`,
+      topNTip: `Not all chunks with similarity score above the 'similarity threshold' will be sent to the LLM. This selects 'Top N' chunks from the retrieved ones.`,
       variable: 'Variable',
-      variableTip: `If you use dialog APIs, the varialbes might help you chat with your clients with different strategies. 
-      The variables are used to fill-in the 'System' part in prompt in order to give LLM a hint.
-      The 'knowledge' is a very special variable which will be filled-in with the retrieved chunks.
-      All the variables in 'System' should be curly bracketed.`,
+      variableTip: `Variables can assist in developing more flexible strategies, particularly when you are using our chat assistant management APIs. These variables will be used by 'System' as part of the prompts for the LLM. The variable {knowledge} is a reserved special variable representing your selected knowledge base(s), and all variables should be enclosed in curly braces {}.`,
       add: 'Add',
-      key: 'key',
+      key: 'Key',
       optional: 'Optional',
-      operation: 'operation',
+      operation: 'Operation',
       model: 'Model',
       modelTip: 'Large language chat model',
       modelMessage: 'Please select!',
@@ -372,32 +380,32 @@ The above is the content you need to summarize.`,
       improvise: 'Improvise',
       precise: 'Precise',
       balance: 'Balance',
-      freedomTip: `'Precise' means the LLM will be conservative and answer your question cautiously. 'Improvise' means the you want LLM talk much and freely. 'Balance' is between cautiously and freely.`,
+      freedomTip: `Set the freedom level to 'Precise' to strictly confine the LLM's response to your selected knowledge base(s). Choose 'Improvise' to grant the LLM greater freedom in its responses, which may lead to hallucinations. 'Balance' is an intermediate level; choose 'Balance' for more balanced responses.`,
       temperature: 'Temperature',
       temperatureMessage: 'Temperature is required',
-      temperatureTip:
-        'This parameter controls the randomness of predictions by the model. A lower temperature makes the model more confident in its responses, while a higher temperature makes it more creative and diverse.',
+      temperatureTip: `This parameter controls the randomness of the model's predictions. A lower temperature results in more conservative responses, while a higher temperature yields more creative and diverse responses.`,
       topP: 'Top P',
       topPMessage: 'Top P is required',
       topPTip:
-        'Also known as “nucleus sampling,” this parameter sets a threshold to select a smaller set of words to sample from. It focuses on the most likely words, cutting off the less probable ones.',
-      presencePenalty: 'Presence Penalty',
-      presencePenaltyMessage: 'Presence Penalty is required',
+        'Also known as "nucleus sampling", this parameter sets a threshold for selecting a smaller set of the most likely words to sample from, cutting off the less probable ones.',
+      presencePenalty: 'Presence penalty',
+      presencePenaltyMessage: 'Presence penalty is required',
       presencePenaltyTip:
         'This discourages the model from repeating the same information by penalizing words that have already appeared in the conversation.',
-      frequencyPenalty: 'Frequency Penalty',
-      frequencyPenaltyMessage: 'Frequency Penalty is required',
+      frequencyPenalty: 'Frequency penalty',
+      frequencyPenaltyMessage: 'Frequency penalty is required',
       frequencyPenaltyTip:
         'Similar to the presence penalty, this reduces the model’s tendency to repeat the same words frequently.',
-      maxTokens: 'Max Tokens',
-      maxTokensMessage: 'Max Tokens is required',
-      maxTokensTip:
-        'This sets the maximum length of the model’s output, measured in the number of tokens (words or pieces of words).',
-      quote: 'Show Quote',
-      quoteTip: 'Should the source of the original text be displayed?',
+      maxTokens: 'Max tokens',
+      maxTokensMessage: 'Max tokens is required',
+      maxTokensTip: `This sets the maximum length of the model's output, measured in the number of tokens (words or pieces of words). Defaults to 512. If disabled, you lift the maximum token limit, allowing the model to determine the number of tokens in its responses.`,
+      maxTokensInvalidMessage: 'Please enter a valid number for Max Tokens.',
+      maxTokensMinMessage: 'Max Tokens cannot be less than 0.',
+      quote: 'Show quote',
+      quoteTip: 'Whether to display the original text as a reference.',
       selfRag: 'Self-RAG',
       selfRagTip: 'Please refer to: https://huggingface.co/papers/2310.11511',
-      overview: 'Chat Bot API',
+      overview: 'Chat ID',
       pv: 'Number of messages',
       uv: 'Active user number',
       speed: 'Token output speed',
@@ -407,22 +415,24 @@ The above is the content you need to summarize.`,
       preview: 'Preview',
       embedded: 'Embedded',
       serviceApiEndpoint: 'Service API Endpoint',
-      apiKey: 'API Key',
+      apiKey: 'API KEY',
       apiReference: 'API Documents',
       dateRange: 'Date Range:',
-      backendServiceApi: 'Backend service API',
+      backendServiceApi: 'API Server',
       createNewKey: 'Create new key',
       created: 'Created',
       action: 'Action',
-      embedModalTitle: 'Embed into website',
+      embedModalTitle: 'Embed into webpage',
       comingSoon: 'Coming Soon',
       fullScreenTitle: 'Full Embed',
       fullScreenDescription:
         'Embed the following iframe into your website at the desired location',
       partialTitle: 'Partial Embed',
       extensionTitle: 'Chrome Extension',
-      tokenError: 'Please create API Token first!',
-      searching: 'searching...',
+      tokenError: 'Please create API key first.',
+      betaError:
+        'Please acquire a RAGFlow API key from the System Settings page first.',
+      searching: 'Searching...',
       parsing: 'Parsing',
       uploading: 'Uploading',
       uploadFailed: 'Upload failed',
@@ -430,19 +440,32 @@ The above is the content you need to summarize.`,
       read: 'Read content',
       tts: 'Text to speech',
       ttsTip:
-        'To play the voice using voice conversion, please select TTS (speech conversion model) in the settings first.',
+        'Ensure you select a TTS model on the Settings page before enabling this toggle to play text as audio.',
+      relatedQuestion: 'Related question',
+      answerTitle: 'R',
+      multiTurn: 'Multi-turn optimization',
+      multiTurnTip:
+        'This optimizes user queries using context in a multi-round conversation. When enabled, it will consume additional LLM tokens.',
+      howUseId: 'How to use chat ID?',
+      description: 'Description of assistant',
     },
     setting: {
       profile: 'Profile',
       profileDescription: 'Update your photo and personal details here.',
+      maxTokens: 'Max Tokens',
+      maxTokensMessage: 'Max Tokens is required',
+      maxTokensTip: `This sets the maximum length of the model's output, measured in the number of tokens (words or pieces of words). Defaults to 512. If disabled, you lift the maximum token limit, allowing the model to determine the number of tokens in its responses.`,
+      maxTokensInvalidMessage: 'Please enter a valid number for Max Tokens.',
+      maxTokensMinMessage: 'Max Tokens cannot be less than 0.',
       password: 'Password',
       passwordDescription:
         'Please enter your current password to change your password.',
-      model: 'Model Providers',
-      modelDescription: 'Set the model parameter and API Key here.',
+      model: 'Model providers',
+      modelDescription: 'Set the model parameter and API KEY here.',
       team: 'Team',
       system: 'System',
       logout: 'Log out',
+      api: 'API',
       username: 'Username',
       usernameMessage: 'Please input your username!',
       photo: 'Your photo',
@@ -452,7 +475,7 @@ The above is the content you need to summarize.`,
       colorSchemaPlaceholder: 'select your color schema',
       bright: 'Bright',
       dark: 'Dark',
-      timezone: 'Timezone',
+      timezone: 'Time zone',
       timezoneMessage: 'Please input your timezone!',
       timezonePlaceholder: 'select your timezone',
       email: 'Email address',
@@ -494,7 +517,7 @@ The above is the content you need to summarize.`,
       sequence2txtModel: 'Sequence2txt model',
       sequence2txtModelTip:
         'The default ASR model all the newly created knowledgebase will use. Use this model to translate voices to corresponding text.',
-      rerankModel: 'Rerank Model',
+      rerankModel: 'Rerank model',
       rerankModelTip: `The default rerank model is used to rerank chunks retrieved by users' questions.`,
       ttsModel: 'TTS Model',
       ttsModelTip:
@@ -544,6 +567,12 @@ The above is the content you need to summarize.`,
       SparkModelNameMessage: 'Please select Spark model',
       addSparkAPIPassword: 'Spark APIPassword',
       SparkAPIPasswordMessage: 'please input your APIPassword',
+      addSparkAPPID: 'Spark APP ID',
+      SparkAPPIDMessage: 'please input your APP ID',
+      addSparkAPISecret: 'Spark APISecret',
+      SparkAPISecretMessage: 'please input your APISecret',
+      addSparkAPIKey: 'Spark APIKey',
+      SparkAPIKeyMessage: 'please input your APIKey',
       yiyanModelNameMessage: 'Please input model name',
       addyiyanAK: 'yiyan API KEY',
       yiyanAKMessage: 'Please input your API KEY',
@@ -553,7 +582,7 @@ The above is the content you need to summarize.`,
         'Please give your speech synthesis model a name',
       addFishAudioAK: 'Fish Audio API KEY',
       addFishAudioAKMessage: 'Please input your API KEY',
-      addFishAudioRefID: 'FishAudio Refrence ID',
+      addFishAudioRefID: 'FishAudio Reference ID',
       addFishAudioRefIDMessage:
         'Please input the Reference ID (leave blank to use the default model).',
       GoogleModelIDMessage: 'Please input your model ID!',
@@ -565,6 +594,20 @@ The above is the content you need to summarize.`,
         'Please input Google Cloud Service Account Key in base64 format',
       addGoogleRegion: 'Google Cloud Region',
       GoogleRegionMessage: 'Please input Google Cloud Region',
+      modelProvidersWarn: `Please add both embedding model and LLM in <b>Settings > Model providers</b>  firstly. Then, set them in 'System model settings'.`,
+      apiVersion: 'API-Version',
+      apiVersionMessage: 'Please input API version',
+      add: 'Add',
+      updateDate: 'Update Date',
+      role: 'Role',
+      invite: 'Invite',
+      agree: 'Accept',
+      refuse: 'Decline',
+      teamMembers: 'Team Members',
+      joinedTeams: 'Joined Teams',
+      sureDelete: 'Are you sure to remove this member?',
+      quit: 'Quit',
+      sureQuit: 'Are you sure you want to quit the team you joined?',
     },
     message: {
       registered: 'Registered!',
@@ -588,6 +631,7 @@ The above is the content you need to summarize.`,
       404: 'The request was made for a record that does not exist, and the server did not perform the operation.',
       406: 'The requested format is not available.',
       410: 'The requested resource has been permanently deleted and will not be available again.',
+      413: 'The total size of the files uploaded at once is too large.',
       422: 'When creating an object, a validation error occurred.',
       500: 'A server error occurred, please check the server.',
       502: 'Gateway error.',
@@ -633,20 +677,20 @@ The above is the content you need to summarize.`,
       msg: 'Messages',
       messagePlaceholder: 'message',
       messageMsg: 'Please input message or delete this field.',
-      addField: 'Add field',
+      addField: 'Add option',
       addMessage: 'Add message',
       loop: 'Loop',
       loopTip:
         'Loop is the upper limit of the number of loops of the current component, when the number of loops exceeds the value of loop, it means that the component can not complete the current task, please re-optimize agent',
       yes: 'Yes',
       no: 'No',
-      key: 'key',
+      key: 'Key',
       componentId: 'Component ID',
       add: 'Add',
       operation: 'operation',
       run: 'Run',
       save: 'Save',
-      title: 'Title:',
+      title: 'ID:',
       beginDescription: 'This is where the flow begins.',
       answerDescription: `A component that serves as the interface between human and bot, receiving user inputs and displaying the agent's responses.`,
       retrievalDescription: `A component that retrieves information from a specified knowledge base and returns 'Empty response' if no information is found. Ensure the correct knowledge base is selected.`,
@@ -656,8 +700,9 @@ The above is the content you need to summarize.`,
       rewriteQuestionDescription: `A component that refines a user query if it fails to retrieve relevant information from the knowledge base. It repeats this process until the predefined looping upper limit is reached. Ensure its upstream is 'Relevant' and downstream is 'Retrieval'. `,
       messageDescription:
         "A component that sends out a static message. If multiple messages are supplied, it randomly selects one to send. Ensure its downstream is 'Answer', the interface component.",
-      keywordDescription: `A component that retrieves top N search results from wikipedia.org. Ensure the TopN value is set properly before use.`,
-      wikipediaDescription: `This component is used to get search result from https://www.wikipedia.org/. Typically, it performs as a supplement to knowledgebases. Top N specifies the number of search results you need to adapt.`,
+      keywordDescription: `A component that retrieves top N search results from user's input. Ensure the TopN value is set properly before use.`,
+      switchDescription: `A component that evaluates conditions based on the output of previous components and directs the flow of execution accordingly. It allows for complex branching logic by defining cases and specifying actions for each case or default action if no conditions are met.`,
+      wikipediaDescription: `A component that searches from wikipedia.org, using TopN to specify the number of search results. It supplements the existing knowledge bases.`,
       promptText: `Please summarize the following paragraphs. Be careful with the numbers, do not make things up. Paragraphs as following:
         {input}
   The above is the content you need to summarize.`,
@@ -665,7 +710,7 @@ The above is the content you need to summarize.`,
       createFromTemplates: 'Create from templates',
       retrieval: 'Retrieval',
       generate: 'Generate',
-      answer: 'Answer',
+      answer: 'Interact',
       categorize: 'Categorize',
       relevant: 'Relevant',
       rewriteQuestion: 'Rewrite',
@@ -679,12 +724,12 @@ The above is the content you need to summarize.`,
       nameRequiredMsg: 'Name is required',
       nameRepeatedMsg: 'The name cannot be repeated',
       keywordExtract: 'Keyword',
-      keywordExtractDescription: `This component is used to extract keywords from user's question. Top N specifies the number of keywords you need to extract.`,
+      keywordExtractDescription: `A component that extracts keywords from a user query, with Top N specifying the number of keywords to extract.`,
       baidu: 'Baidu',
-      baiduDescription: `This component is used to get search result from www.baidu.com. Typically, it performs as a supplement to knowledgebases. Top N specifies the number of search results you need to adapt.`,
+      baiduDescription: `A component that searches from baidu.com, using TopN to specify the number of search results. It supplements the existing knowledge bases.`,
       duckDuckGo: 'DuckDuckGo',
       duckDuckGoDescription:
-        'This component is used to get search result from www.duckduckgo.com. Typically, it performs as a supplement to knowledgebases. Top N specifies the number of search results you need to adapt.',
+        'A component that searches from duckduckgo.com, allowing you to specify the number of search results using TopN. It supplements the existing knowledge bases.',
       channel: 'Channel',
       channelTip: `Perform text search or news search on the component's input`,
       text: 'Text',
@@ -694,45 +739,47 @@ The above is the content you need to summarize.`,
         'The  window size of conversation history that needed to be seen by LLM. The larger the better. But be careful with the maximum content length of LLM.',
       wikipedia: 'Wikipedia',
       pubMed: 'PubMed',
+      pubMedDescription:
+        'A component that searches from https://pubmed.ncbi.nlm.nih.gov/, allowing you to specify the number of search results using TopN. It supplements the existing knowledge bases.',
       email: 'Email',
       emailTip:
-        'This component is used to get search result from https://pubmed.ncbi.nlm.nih.gov/. Typically, it performs as a supplement to knowledgebases. Top N specifies the number of search results you need to adapt. E-mail is a required field.',
+        'E-mail is a required field. You must input an E-mail address here.',
       arXiv: 'ArXiv',
-      arXivTip:
-        'This component is used to get search result from https://arxiv.org/. Typically, it performs as a supplement to knowledgebases. Top N specifies the number of search results you need to adapt.',
+      arXivDescription:
+        'A component that searches from https://arxiv.org/, allowing you to specify the number of search results using TopN. It supplements the existing knowledge bases.',
       sortBy: 'Sort by',
       submittedDate: 'Submitted date',
       lastUpdatedDate: 'Last updated date',
       relevance: 'Relevance',
       google: 'Google',
-      googleTip:
-        'This component is used to get search result fromhttps://www.google.com/ . Typically, it performs as a supplement to knowledgebases. Top N and SerpApi API key specifies the number of search results you need to adapt.',
+      googleDescription:
+        'A component that searches from https://www.google.com/, allowing you to specify the number of search results using TopN. It supplements the existing knowledge bases. Please note that this requires an API key from serpapi.com.',
       bing: 'Bing',
-      bingTip:
-        'This component is used to get search result from https://www.bing.com/. Typically, it performs as a supplement to knowledgebases. Top N and Bing Subscription-Key specifies the number of search results you need to adapt.',
-      apiKey: 'API Key',
-      country: 'Country',
+      bingDescription:
+        'A component that searches from https://www.bing.com/, allowing you to specify the number of search results using TopN. It supplements the existing knowledge bases. Please note that this requires an API key from microsoft.com.',
+      apiKey: 'API KEY',
+      country: 'Country&Region',
       language: 'Language',
       googleScholar: 'Google Scholar',
       googleScholarDescription:
-        'This component is used to get search result from https://scholar.google.com/. Typically, it performs as a supplement to knowledgebases. Top N specifies the number of search results you need to adapt.',
+        'A component that searches https://scholar.google.com/. You can use Top N to specify the number of search results.',
       yearLow: 'Year low',
       yearHigh: 'Year high',
       patents: 'Patents',
       data: 'Data',
       deepL: 'DeepL',
       deepLDescription:
-        'This component is used to get translations from https://www.deepl.com/. Typically, it provides a more specialized translation result.',
+        'A component that gets more specialized translations from https://www.deepl.com/.',
       authKey: 'Auth key',
       sourceLang: 'Source language',
       targetLang: 'Target language',
       gitHub: 'GitHub',
-      githubDescription:
-        'This component is used to search the repository from https://github.com/. Top N specifies the number of search results to be adjusted.',
+      gitHubDescription:
+        'A component that searches for repositories from https://github.com/. You can use Top N to specify the number of search results.',
       baiduFanyi: 'BaiduFanyi',
       baiduFanyiDescription:
-        'This component is used to get translations from https://fanyi.baidu.com/. Typically, it provides a more specialized translation result',
-      appid: 'App id',
+        'A component that gets specialized translations from https://fanyi.baidu.com/.',
+      appid: 'App ID',
       secretKey: 'Secret key',
       domain: 'Domain',
       transType: 'Translation type',
@@ -786,7 +833,7 @@ The above is the content you need to summarize.`,
       },
       qWeather: 'QWeather',
       qWeatherDescription:
-        'This component is used to get weather related information from https://www.qweather.com/. You can get weather, indices, air quality.',
+        'A component that retrieves weather information, such as temperature and air quality, from https://www.qweather.com/.',
       lang: 'Language',
       type: 'Type',
       webApiKey: 'Web API key',
@@ -845,7 +892,7 @@ The above is the content you need to summarize.`,
       publish: 'API',
       exeSQL: 'ExeSQL',
       exeSQLDescription:
-        'The component queries the results from the corresponding relational database via SQL statements. Supports MySQL, PostgreSQL, MariaDB. ',
+        'A component that performs SQL queries on a relational database, supporting querying from MySQL, PostgreSQL, or MariaDB.',
       dbType: 'Database Type',
       database: 'Database',
       username: 'Username',
@@ -875,6 +922,181 @@ The above is the content you need to summarize.`,
       operator: 'Operator',
       value: 'Value',
       useTemplate: 'Use this template',
+      wenCai: 'WenCai',
+      queryType: 'Query type',
+      wenCaiDescription:
+        'A component that obtains financial information, including stock prices and funding news, from a wide range of financial websites.',
+      wenCaiQueryTypeOptions: {
+        stock: 'stock',
+        zhishu: 'index',
+        fund: 'fund',
+        hkstock: 'Hong Kong shares',
+        usstock: 'US stock market',
+        threeboard: 'New OTC Market',
+        conbond: 'Convertible Bond',
+        insurance: 'insurance',
+        futures: 'futures',
+        lccp: 'Financing',
+        foreign_exchange: 'Foreign currency',
+      },
+      akShare: 'AkShare',
+      akShareDescription:
+        'A component that obtains news about stocks from https://www.eastmoney.com/.',
+      yahooFinance: 'YahooFinance',
+      yahooFinanceDescription:
+        'A component that queries information about a publicly traded company using its ticker symbol.',
+      crawler: 'Web Crawler',
+      crawlerDescription:
+        'A component that crawls HTML source code from a specified URL.',
+      proxy: 'Proxy',
+      crawlerResultOptions: {
+        html: 'Html',
+        markdown: 'Markdown',
+        content: 'Content',
+      },
+      extractType: 'Extract type',
+      info: 'Info',
+      history: 'History',
+      financials: 'Financials',
+      balanceSheet: 'Balance sheet',
+      cashFlowStatement: 'Cash flow statement',
+      jin10: 'Jin10',
+      jin10Description:
+        'A component that retrieves financial information from the Jin10 Open Platform, including news updates, calendars, quotes, and references.',
+      flashType: 'Flash type',
+      filter: 'Filter',
+      contain: 'Contain',
+      calendarType: 'Calendar type',
+      calendarDatashape: 'Calendar datashape',
+      symbolsDatatype: 'Symbols datatype',
+      symbolsType: 'Symbols type',
+      jin10TypeOptions: {
+        flash: 'Quick News',
+        calendar: 'Calendar',
+        symbols: 'quotes',
+        news: 'reference',
+      },
+      jin10FlashTypeOptions: {
+        '1': 'Market News',
+        '2': ' Futures News',
+        '3': 'US-Hong Kong News',
+        '4': 'A-Share News',
+        '5': 'Commodities & Forex News',
+      },
+      jin10CalendarTypeOptions: {
+        cj: 'Macroeconomic Data Calendar',
+        qh: ' Futures Calendar',
+        hk: 'Hong Kong Stock Market Calendar',
+        us: 'US Stock Market Calendar',
+      },
+      jin10CalendarDatashapeOptions: {
+        data: 'Data',
+        event: ' Event',
+        holiday: 'Holiday',
+      },
+      jin10SymbolsTypeOptions: {
+        GOODS: 'Commodity Quotes',
+        FOREX: ' Forex Quotes',
+        FUTURE: 'International Market Quotes',
+        CRYPTO: 'Cryptocurrency Quotes',
+      },
+      jin10SymbolsDatatypeOptions: {
+        symbols: 'Commodity List',
+        quotes: ' Latest Market Quotes',
+      },
+      concentrator: 'Concentrator',
+      concentratorDescription:
+        'A component that receives the output from the upstream component and passes it on as input to the downstream components.',
+      tuShare: 'TuShare',
+      tuShareDescription:
+        'A component that obtains financial news briefs from mainstream financial websites, aiding industry and quantitative research.',
+      tuShareSrcOptions: {
+        sina: 'Sina',
+        wallstreetcn: 'wallstreetcn',
+        '10jqka': 'Straight flush',
+        eastmoney: 'Eastmoney',
+        yuncaijing: 'YUNCAIJING',
+        fenghuang: 'FENGHUANG',
+        jinrongjie: 'JRJ',
+      },
+      token: 'Token',
+      src: 'Source',
+      startDate: 'Start date',
+      endDate: 'End date',
+      keyword: 'Keyword',
+      note: 'Note',
+      noteDescription: 'Note',
+      notePlaceholder: 'Please enter a note',
+      invoke: 'Invoke',
+      invokeDescription: `A component capable of calling remote services, using other components' outputs or constants as inputs.`,
+      url: 'Url',
+      method: 'Method',
+      timeout: 'Timeout',
+      headers: 'Headers',
+      cleanHtml: 'Clean HTML',
+      cleanHtmlTip:
+        'If the response is HTML formatted and only the primary content wanted, please toggle it on.',
+      reference: 'Reference',
+      input: 'Input',
+      output: 'Output',
+      parameter: 'Parameter',
+      howUseId: 'How to use agent ID?',
+      content: 'Content',
+      operationResults: 'Operation Results',
+      autosaved: 'Autosaved',
+      optional: 'Optional',
+      pasteFileLink: 'Paste file link',
+      testRun: 'Test Run',
+      template: 'Template',
+      templateDescription:
+        'A component that formats the output of another component.',
+      emailComponent: 'Email',
+      emailDescription: 'Send an email to a specified address.',
+      smtpServer: 'SMTP Server',
+      smtpPort: 'SMTP Port',
+      senderEmail: 'Sender Email',
+      authCode: 'Authorization Code',
+      senderName: 'Sender Name',
+      toEmail: 'Recipient Email',
+      ccEmail: 'CC Email',
+      emailSubject: 'Subject',
+      emailContent: 'Content',
+      smtpServerRequired: 'Please input SMTP server address',
+      senderEmailRequired: 'Please input sender email',
+      authCodeRequired: 'Please input authorization code',
+      toEmailRequired: 'Please input recipient email',
+      emailContentRequired: 'Please input email content',
+      emailSentSuccess: 'Email sent successfully',
+      emailSentFailed: 'Failed to send email',
+      dynamicParameters: 'Dynamic Parameters',
+      jsonFormatTip:
+        'Upstream component should provide JSON string in following format:',
+      toEmailTip: 'to_email: Recipient email (Required)',
+      ccEmailTip: 'cc_email: CC email (Optional)',
+      subjectTip: 'subject: Email subject (Optional)',
+      contentTip: 'content: Email content (Optional)',
+      jsonUploadTypeErrorMessage: 'Please upload json file',
+      jsonUploadContentErrorMessage: 'json file error',
+      iteration: 'Iteration',
+      iterationDescription: `This component firstly split the input into array by "delimiter".
+Perform the same operation steps on the elements in the array in sequence until all results are output, which can be understood as a task batch processor.
+
+For example, within the long text translation iteration node, if all content is input to the LLM node, the single conversation limit may be reached. The upstream node can first split the long text into multiple fragments, and cooperate with the iterative node to perform batch translation on each fragment to avoid reaching the LLM message limit for a single conversation.`,
+      delimiterTip: `
+This delimiter is used to split the input text into several text pieces echo of which will be performed as input item of each iteration.`,
+      delimiterOptions: {
+        comma: 'Comma',
+        lineBreak: 'Line break',
+        tab: 'Tab',
+        underline: 'Underline',
+        diagonal: 'Diagonal',
+        minus: 'Minus',
+        semicolon: 'Semicolon',
+      },
+      addVariable: 'Add variable',
+      variableSettings: 'Variable settings',
+      globalVariables: 'Global variables',
+      systemPrompt: 'System prompt',
     },
     footer: {
       profile: 'All rights reserved @ React',

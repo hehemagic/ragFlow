@@ -37,16 +37,22 @@ const EditTag = ({ tags, setTags }: EditTagsProps) => {
   };
 
   const handleInputConfirm = () => {
-    if (inputValue && tags?.indexOf(inputValue) === -1) {
-      setTags?.([...tags, inputValue]);
+    if (inputValue && tags) {
+      const newTags = inputValue
+        .split(';')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag && !tags.includes(tag)); 
+      setTags?.([...tags, ...newTags]);
     }
     setInputVisible(false);
     setInputValue('');
   };
 
   const forMap = (tag: string) => {
-    const tagElem = (
+    return (
       <Tag
+        key={tag}
+        className={styles.tag}
         closable
         onClose={(e) => {
           e.preventDefault();
@@ -55,11 +61,6 @@ const EditTag = ({ tags, setTags }: EditTagsProps) => {
       >
         {tag}
       </Tag>
-    );
-    return (
-      <span key={tag} style={{ display: 'inline-block' }}>
-        {tagElem}
-      </span>
     );
   };
 
@@ -71,8 +72,8 @@ const EditTag = ({ tags, setTags }: EditTagsProps) => {
   };
 
   return (
-    <>
-      <span>
+    <div>
+      {Array.isArray(tagChild) && tagChild.length > 0 && (
         <TweenOneGroup
           className={styles.tweenGroup}
           enter={{
@@ -91,13 +92,12 @@ const EditTag = ({ tags, setTags }: EditTagsProps) => {
         >
           {tagChild}
         </TweenOneGroup>
-      </span>
+      )}
       {inputVisible ? (
         <Input
           ref={inputRef}
           type="text"
           size="small"
-          style={{ width: 78 }}
           value={inputValue}
           onChange={handleInputChange}
           onBlur={handleInputConfirm}
@@ -108,7 +108,7 @@ const EditTag = ({ tags, setTags }: EditTagsProps) => {
           <PlusOutlined />
         </Tag>
       )}
-    </>
+    </div>
   );
 };
 

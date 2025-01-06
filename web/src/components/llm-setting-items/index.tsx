@@ -7,7 +7,7 @@ import { Divider, Flex, Form, InputNumber, Select, Slider, Switch } from 'antd';
 import camelCase from 'lodash/camelCase';
 
 import { useTranslate } from '@/hooks/common-hooks';
-import { useSelectLlmOptionsByModelType } from '@/hooks/llm-hooks';
+import { useComposeLlmOptionsByModelTypes } from '@/hooks/llm-hooks';
 import { useCallback, useMemo } from 'react';
 import styles from './index.less';
 
@@ -39,7 +39,10 @@ const LlmSettingItems = ({ prefix, formItemLayout = {} }: IProps) => {
 
   const memorizedPrefix = useMemo(() => (prefix ? [prefix] : []), [prefix]);
 
-  const modelOptions = useSelectLlmOptionsByModelType();
+  const modelOptions = useComposeLlmOptionsByModelTypes([
+    LlmModelType.Chat,
+    LlmModelType.Image2text,
+  ]);
 
   return (
     <>
@@ -50,13 +53,7 @@ const LlmSettingItems = ({ prefix, formItemLayout = {} }: IProps) => {
         {...formItemLayout}
         rules={[{ required: true, message: t('modelMessage') }]}
       >
-        <Select
-          options={[
-            ...modelOptions[LlmModelType.Chat],
-            ...modelOptions[LlmModelType.Image2text],
-          ]}
-          showSearch
-        />
+        <Select options={modelOptions} showSearch />
       </Form.Item>
       <Divider></Divider>
       <Form.Item
@@ -272,7 +269,7 @@ const LlmSettingItems = ({ prefix, formItemLayout = {} }: IProps) => {
                     >
                       <Slider
                         className={styles.variableSlider}
-                        max={8192}
+                        max={128000}
                         disabled={disabled}
                       />
                     </Form.Item>
@@ -281,7 +278,7 @@ const LlmSettingItems = ({ prefix, formItemLayout = {} }: IProps) => {
                     <InputNumber
                       disabled={disabled}
                       className={styles.sliderInputNumber}
-                      max={8192}
+                      max={128000}
                       min={0}
                     />
                   </Form.Item>

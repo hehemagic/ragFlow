@@ -13,6 +13,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 from abc import ABC
 import pandas as pd
 from agent.component.base import ComponentBase, ComponentParamBase
@@ -62,15 +63,8 @@ class YahooFinance(ComponentBase, ABC):
                 yohoo_res.append({"content": "info:\n" + pd.Series(msft.info).to_markdown() + "\n"})
             if self._param.history:
                 yohoo_res.append({"content": "history:\n" + msft.history().to_markdown() + "\n"})
-            if self._param.count:
-                yohoo_res.append({"content": "count:\n" + msft.get_shares_full().to_markdown() + "\n"})
             if self._param.financials:
-                yohoo_res.append({"content": "calendar:\n" + pd.DataFrame(msft.calendar).to_markdown + "\n"})
-                yohoo_res.append({"content": "sec_filings:\n" + pd.DataFrame(msft.sec_filings).to_markdown() + "\n"})
-            if self._param.income_stmt:
-                yohoo_res.append({"content": "income statement:\n" + msft.income_stmt.to_markdown() + "\n"})
-                yohoo_res.append(
-                    {"content": "quarterly income statement:\n" + msft.quarterly_income_stmt.to_markdown() + "\n"})
+                yohoo_res.append({"content": "calendar:\n" + pd.DataFrame(msft.calendar).to_markdown() + "\n"})
             if self._param.balance_sheet:
                 yohoo_res.append({"content": "balance sheet:\n" + msft.balance_sheet.to_markdown() + "\n"})
                 yohoo_res.append(
@@ -81,8 +75,8 @@ class YahooFinance(ComponentBase, ABC):
                     {"content": "quarterly cash flow statement:\n" + msft.quarterly_cashflow.to_markdown() + "\n"})
             if self._param.news:
                 yohoo_res.append({"content": "news:\n" + pd.DataFrame(msft.news).to_markdown() + "\n"})
-        except Exception as e:
-            print("**ERROR** " + str(e))
+        except Exception:
+            logging.exception("YahooFinance got exception")
 
         if not yohoo_res:
             return YahooFinance.be_output("")

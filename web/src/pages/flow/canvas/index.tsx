@@ -1,38 +1,69 @@
-import { useCallback } from 'react';
-import ReactFlow, {
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Background,
   ConnectionMode,
+  ControlButton,
   Controls,
-  NodeMouseHandler,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
-
-import { ButtonEdge } from './edge';
-
-import FlowDrawer from '../flow-drawer';
+  NodeTypes,
+  ReactFlow,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { FolderInput, FolderOutput } from 'lucide-react';
+import ChatDrawer from '../chat/drawer';
+import FormDrawer from '../flow-drawer';
 import {
   useHandleDrop,
-  useHandleKeyUp,
   useSelectCanvasData,
-  useShowDrawer,
   useValidateConnection,
   useWatchNodeFormDataChange,
 } from '../hooks';
-import { RagNode } from './node';
-
-import ChatDrawer from '../chat/drawer';
+import { useBeforeDelete } from '../hooks/use-before-delete';
+import { useHandleExportOrImportJsonFile } from '../hooks/use-export-json';
+import { useShowDrawer } from '../hooks/use-show-drawer';
+import JsonUploadModal from '../json-upload-modal';
+import RunDrawer from '../run-drawer';
+import { ButtonEdge } from './edge';
 import styles from './index.less';
+import { RagNode } from './node';
 import { BeginNode } from './node/begin-node';
 import { CategorizeNode } from './node/categorize-node';
+import { EmailNode } from './node/email-node';
+import { GenerateNode } from './node/generate-node';
+import { InvokeNode } from './node/invoke-node';
+import { IterationNode, IterationStartNode } from './node/iteration-node';
+import { KeywordNode } from './node/keyword-node';
 import { LogicNode } from './node/logic-node';
+import { MessageNode } from './node/message-node';
+import NoteNode from './node/note-node';
 import { RelevantNode } from './node/relevant-node';
+import { RetrievalNode } from './node/retrieval-node';
+import { RewriteNode } from './node/rewrite-node';
+import { SwitchNode } from './node/switch-node';
+import { TemplateNode } from './node/template-node';
 
-const nodeTypes = {
+const nodeTypes: NodeTypes = {
   ragNode: RagNode,
   categorizeNode: CategorizeNode,
   beginNode: BeginNode,
   relevantNode: RelevantNode,
   logicNode: LogicNode,
+  noteNode: NoteNode,
+  switchNode: SwitchNode,
+  generateNode: GenerateNode,
+  retrievalNode: RetrievalNode,
+  messageNode: MessageNode,
+  rewriteNode: RewriteNode,
+  keywordNode: KeywordNode,
+  invokeNode: InvokeNode,
+  templateNode: TemplateNode,
+  emailNode: EmailNode,
+  group: IterationNode,
+  iterationStartNode: IterationStartNode,
 };
 
 const edgeTypes = {
@@ -40,11 +71,11 @@ const edgeTypes = {
 };
 
 interface IProps {
-  chatDrawerVisible: boolean;
-  hideChatDrawer(): void;
+  drawerVisible: boolean;
+  hideDrawer(): void;
 }
 
-function FlowCanvas({ chatDrawerVisible, hideChatDrawer }: IProps) {
+function FlowCanvas({ drawerVisible, hideDrawer }: IProps) {
   const {
     nodes,
     edges,
@@ -55,23 +86,38 @@ function FlowCanvas({ chatDrawerVisible, hideChatDrawer }: IProps) {
   } = useSelectCanvasData();
   const isValidConnection = useValidateConnection();
 
-  const { drawerVisible, hideDrawer, showDrawer, clickedNode } =
-    useShowDrawer();
-
-  const onNodeClick: NodeMouseHandler = useCallback(
-    (e, node) => {
-      showDrawer(node);
-    },
-    [showDrawer],
-  );
-
-  const onPaneClick = useCallback(() => {
-    hideDrawer();
-  }, [hideDrawer]);
+  const controlIconClassname = 'text-black';
 
   const { onDrop, onDragOver, setReactFlowInstance } = useHandleDrop();
 
-  const { handleKeyUp } = useHandleKeyUp();
+  const {
+    handleExportJson,
+    handleImportJson,
+    fileUploadVisible,
+    onFileUploadOk,
+    hideFileUploadModal,
+  } = useHandleExportOrImportJsonFile();
+
+  const {
+    onNodeClick,
+    onPaneClick,
+    clickedNode,
+    formDrawerVisible,
+    hideFormDrawer,
+    singleDebugDrawerVisible,
+    hideSingleDebugDrawer,
+    showSingleDebugDrawer,
+    chatVisible,
+    runVisible,
+    hideRunOrChatDrawer,
+    showChatModal,
+  } = useShowDrawer({
+    drawerVisible,
+    hideDrawer,
+  });
+
+  const { handleBeforeDelete } = useBeforeDelete();
+
   useWatchNodeFormDataChange();
 
   return (
@@ -111,42 +157,74 @@ function FlowCanvas({ chatDrawerVisible, hideChatDrawer }: IProps) {
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onInit={setReactFlowInstance}
-        onKeyUp={handleKeyUp}
         onSelectionChange={onSelectionChange}
         nodeOrigin={[0.5, 0]}
         isValidConnection={isValidConnection}
-        onChange={(...params) => {
-          console.info('params:', ...params);
-        }}
         defaultEdgeOptions={{
           type: 'buttonEdge',
           markerEnd: 'logo',
-          // markerEnd: {
-          //   type: MarkerType.ArrowClosed,
-          //   color: 'rgb(157 149 225)',
-          //   width: 20,
-          //   height: 20,
-          // },
           style: {
-            // edge style
             strokeWidth: 2,
             stroke: 'rgb(202 197 245)',
           },
+          zIndex: 1001, // https://github.com/xyflow/xyflow/discussions/3498
         }}
+        deleteKeyCode={['Delete', 'Backspace']}
+        onBeforeDelete={handleBeforeDelete}
       >
         <Background />
-        <Controls />
+        <Controls>
+          <ControlButton onClick={handleImportJson}>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <FolderInput className={controlIconClassname} />
+                </TooltipTrigger>
+                <TooltipContent>Import</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </ControlButton>
+          <ControlButton onClick={handleExportJson}>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <FolderOutput className={controlIconClassname} />
+                </TooltipTrigger>
+                <TooltipContent>Export</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </ControlButton>
+        </Controls>
       </ReactFlow>
-      <FlowDrawer
-        node={clickedNode}
-        visible={drawerVisible}
-        hideModal={hideDrawer}
-      ></FlowDrawer>
-      {chatDrawerVisible && (
+      {formDrawerVisible && (
+        <FormDrawer
+          node={clickedNode}
+          visible={formDrawerVisible}
+          hideModal={hideFormDrawer}
+          singleDebugDrawerVisible={singleDebugDrawerVisible}
+          hideSingleDebugDrawer={hideSingleDebugDrawer}
+          showSingleDebugDrawer={showSingleDebugDrawer}
+        ></FormDrawer>
+      )}
+      {chatVisible && (
         <ChatDrawer
-          visible={chatDrawerVisible}
-          hideModal={hideChatDrawer}
+          visible={chatVisible}
+          hideModal={hideRunOrChatDrawer}
         ></ChatDrawer>
+      )}
+
+      {runVisible && (
+        <RunDrawer
+          hideModal={hideRunOrChatDrawer}
+          showModal={showChatModal}
+        ></RunDrawer>
+      )}
+      {fileUploadVisible && (
+        <JsonUploadModal
+          onOk={onFileUploadOk}
+          visible={fileUploadVisible}
+          hideModal={hideFileUploadModal}
+        ></JsonUploadModal>
       )}
     </div>
   );

@@ -5,9 +5,11 @@ import camelCase from 'lodash/camelCase';
 import React from 'react';
 import User from '../user';
 
-import { LanguageList } from '@/constants/common';
+import { useTheme } from '@/components/theme-provider';
+import { LanguageList, LanguageMap } from '@/constants/common';
 import { useChangeLanguage } from '@/hooks/logic-hooks';
 import { useFetchUserInfo } from '@/hooks/user-setting-hooks';
+import { MoonIcon, SunIcon } from 'lucide-react';
 import styled from './index.less';
 
 const Circle = ({ children, ...restProps }: React.PropsWithChildren) => {
@@ -25,6 +27,8 @@ const handleGithubCLick = () => {
 const RightToolBar = () => {
   const { t } = useTranslate('common');
   const changeLanguage = useChangeLanguage();
+  const { setTheme, theme } = useTheme();
+
   const {
     data: { language = 'English' },
   } = useFetchUserInfo();
@@ -35,10 +39,17 @@ const RightToolBar = () => {
 
   const items: MenuProps['items'] = LanguageList.map((x) => ({
     key: x,
-    label: <span>{t(camelCase(x))}</span>,
+    label: <span>{LanguageMap[x as keyof typeof LanguageMap]}</span>,
   })).reduce<MenuProps['items']>((pre, cur) => {
     return [...pre!, { type: 'divider' }, cur];
   }, []);
+
+  const onMoonClick = React.useCallback(() => {
+    setTheme('light');
+  }, [setTheme]);
+  const onSunClick = React.useCallback(() => {
+    setTheme('dark');
+  }, [setTheme]);
 
   return (
     <div className={styled.toolbarWrapper}>
@@ -52,9 +63,13 @@ const RightToolBar = () => {
         <Circle>
           <GithubOutlined onClick={handleGithubCLick} />
         </Circle>
-        {/* <Circle>
-          <MonIcon />
-        </Circle> */}
+        <Circle>
+          {theme === 'dark' ? (
+            <MoonIcon onClick={onMoonClick} size={20} />
+          ) : (
+            <SunIcon onClick={onSunClick} size={20} />
+          )}
+        </Circle>
         <User></User>
       </Space>
     </div>

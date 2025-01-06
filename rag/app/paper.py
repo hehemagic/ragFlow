@@ -10,15 +10,14 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import copy
 import re
-from collections import Counter
 
 from api.db import ParserType
 from rag.nlp import rag_tokenizer, tokenize, tokenize_table, add_positions, bullets_category, title_frequency, tokenize_chunks
 from deepdoc.parser import PdfParser, PlainParser
 import numpy as np
-from rag.utils import num_tokens_from_string
 
 
 class Pdf(PdfParser):
@@ -28,7 +27,9 @@ class Pdf(PdfParser):
 
     def __call__(self, filename, binary=None, from_page=0,
                  to_page=100000, zoomin=3, callback=None):
-        callback(msg="OCR is running...")
+        from timeit import default_timer as timer
+        start = timer()
+        callback(msg="OCR started")
         self.__images__(
             filename if not binary else binary,
             zoomin,
@@ -36,27 +37,30 @@ class Pdf(PdfParser):
             to_page,
             callback
         )
-        callback(msg="OCR finished.")
+        callback(msg="OCR finished ({:.2f}s)".format(timer() - start))
 
-        from timeit import default_timer as timer
         start = timer()
         self._layouts_rec(zoomin)
-        callback(0.63, "Layout analysis finished")
-        print("layouts:", timer() - start)
+        callback(0.63, "Layout analysis ({:.2f}s)".format(timer() - start))
+        logging.debug(f"layouts cost: {timer() - start}s")
+
+        start = timer()
         self._table_transformer_job(zoomin)
-        callback(0.68, "Table analysis finished")
+        callback(0.68, "Table analysis ({:.2f}s)".format(timer() - start))
+
+        start = timer()
         self._text_merge()
         tbls = self._extract_table_figure(True, zoomin, True, True)
         column_width = np.median([b["x1"] - b["x0"] for b in self.boxes])
         self._concat_downward()
         ## 过滤不需要的Box
         self._filter_forpages()
-        callback(0.75, "Text merging finished.")
+        callback(0.75, "Text merged ({:.2f}s)".format(timer() - start))
 
         # 判断是否是两栏布局，两栏布局将boxes按照页数、x和top排序
         if column_width < self.page_images[0].size[0] / zoomin / 2:
-            print("two_column...................", column_width,
-                  self.page_images[0].size[0] / zoomin / 2)
+            logging.debug("two_column................... {} {}".format(column_width,
+                  self.page_images[0].size[0] / zoomin / 2))
             self.boxes = self.sort_X_by_page(self.boxes, column_width / 2)
         for b in self.boxes:
             b["text"] = re.sub(r"([\t 　]|\u3000){2,}", " ", b["text"].strip())
@@ -101,11 +105,11 @@ class Pdf(PdfParser):
             i += 1
             txt = b["text"].lower().strip()
             if re.match("(abstract|摘要)", txt):
-                if len(txt.split(" ")) > 32 or len(txt) > 64:
+                if len(txt.split()) > 32 or len(txt) > 64:
                     abstr = txt + self._line_tag(b, zoomin)
                     break
                 txt = self.boxes[i]["text"].lower().strip()
-                if len(txt.split(" ")) > 32 or len(txt) > 64:
+                if len(txt.split()) > 32 or len(txt) > 64:
                     abstr = txt + self._line_tag(self.boxes[i], zoomin)
                 i += 1
                 break
@@ -117,8 +121,8 @@ class Pdf(PdfParser):
                 from_page, min(
                     to_page, self.total_page)))
         for b in self.boxes:
-            print(b["text"], b.get("layoutno"))
-        print(tbls)
+            logging.debug("{} {}".format(b["text"], b.get("layoutno")))
+        logging.debug("{}".format(tbls))
 
         return {
             "title": title,
@@ -136,7 +140,6 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
         Only pdf is supported.
         The abstract of the paper will be sliced as an entire chunk, and will not be sliced partly.
     """
-    pdf_parser = None
     if re.search(r"\.pdf$", filename, re.IGNORECASE):
         if not kwargs.get("parser_config", {}).get("layout_recognize", True):
             pdf_parser = PlainParser()
@@ -160,7 +163,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
     doc["authors_sm_tks"] = rag_tokenizer.fine_grained_tokenize(doc["authors_tks"])
     # is it English
     eng = lang.lower() == "english"  # pdf_parser.is_english
-    print("It's English.....", eng)
+    logging.debug("It's English.....{}".format(eng))
 
     res = tokenize_table(paper["tables"], doc, eng)
 
@@ -190,7 +193,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
         if lvl <= most_level and i > 0 and lvl != levels[i - 1]:
             sid += 1
         sec_ids.append(sid)
-        print(lvl, sorted_sections[i][0], most_level, sid)
+        logging.debug("{} {} {} {}".format(lvl, sorted_sections[i][0], most_level, sid))
 
     chunks = []
     last_sid = -2

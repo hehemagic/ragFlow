@@ -17,7 +17,7 @@
 import os
 import re
 import tiktoken
-
+from api.utils.file_utils import get_project_base_directory
 
 def singleton(cls, *args, **kw):
     instances = {}
@@ -32,8 +32,8 @@ def singleton(cls, *args, **kw):
 
 
 def rmSpace(txt):
-    txt = re.sub(r"([^a-z0-9.,]) +([^ ])", r"\1\2", txt, flags=re.IGNORECASE)
-    return re.sub(r"([^ ]) +([^a-z0-9.,])", r"\1\2", txt, flags=re.IGNORECASE)
+    txt = re.sub(r"([^a-z0-9.,\)>]) +([^ ])", r"\1\2", txt, flags=re.IGNORECASE)
+    return re.sub(r"([^ ]) +([^a-z0-9.,\(<])", r"\1\2", txt, flags=re.IGNORECASE)
 
 
 def findMaxDt(fnm):
@@ -41,15 +41,15 @@ def findMaxDt(fnm):
     try:
         with open(fnm, "r") as f:
             while True:
-                l = f.readline()
-                if not l:
+                line = f.readline()
+                if not line:
                     break
-                l = l.strip("\n")
-                if l == 'nan':
+                line = line.strip("\n")
+                if line == 'nan':
                     continue
-                if l > m:
-                    m = l
-    except Exception as e:
+                if line > m:
+                    m = line
+    except Exception:
         pass
     return m
 
@@ -59,30 +59,29 @@ def findMaxTm(fnm):
     try:
         with open(fnm, "r") as f:
             while True:
-                l = f.readline()
-                if not l:
+                line = f.readline()
+                if not line:
                     break
-                l = l.strip("\n")
-                if l == 'nan':
+                line = line.strip("\n")
+                if line == 'nan':
                     continue
-                if int(l) > m:
-                    m = int(l)
-    except Exception as e:
+                if int(line) > m:
+                    m = int(line)
+    except Exception:
         pass
     return m
 
-
-encoder = tiktoken.encoding_for_model("gpt-3.5-turbo")
-
+tiktoken_cache_dir = get_project_base_directory()
+os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
+# encoder = tiktoken.encoding_for_model("gpt-3.5-turbo")
+encoder = tiktoken.get_encoding("cl100k_base")
 
 def num_tokens_from_string(string: str) -> int:
     """Returns the number of tokens in a text string."""
     try:
-        num_tokens = len(encoder.encode(string))
-        return num_tokens
-    except Exception as e:
-        pass
-    return 0
+        return len(encoder.encode(string))
+    except Exception:
+        return 0
 
 
 def truncate(string: str, max_len: int) -> str:

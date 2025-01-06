@@ -20,7 +20,7 @@ from api.db.db_models import DB
 from api.db.db_models import File, File2Document
 from api.db.services.common_service import CommonService
 from api.db.services.document_service import DocumentService
-from api.utils import current_timestamp, datetime_format, get_uuid
+from api.utils import current_timestamp, datetime_format
 
 
 class File2DocumentService(CommonService):
@@ -63,13 +63,13 @@ class File2DocumentService(CommonService):
     def update_by_file_id(cls, file_id, obj):
         obj["update_time"] = current_timestamp()
         obj["update_date"] = datetime_format(datetime.now())
-        num = cls.model.update(obj).where(cls.model.id == file_id).execute()
+        # num = cls.model.update(obj).where(cls.model.id == file_id).execute()
         e, obj = cls.get_by_id(cls.model.id)
         return obj
 
     @classmethod
     @DB.connection_context()
-    def get_minio_address(cls, doc_id=None, file_id=None):
+    def get_storage_address(cls, doc_id=None, file_id=None):
         if doc_id:
             f2d = cls.get_by_document_id(doc_id)
         else:

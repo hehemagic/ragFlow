@@ -10,18 +10,18 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-import copy
+import logging
 from tika import parser
 import re
 from io import BytesIO
 from docx import Document
 
 from api.db import ParserType
-from rag.nlp import bullets_category, is_english, tokenize, remove_contents_table, hierarchical_merge, \
-    make_colon_as_title, add_positions, tokenize_chunks, find_codec, docx_question_level
+from deepdoc.parser.utils import get_text
+from rag.nlp import bullets_category, remove_contents_table, hierarchical_merge, \
+    make_colon_as_title, tokenize_chunks, docx_question_level
 from rag.nlp import rag_tokenizer
 from deepdoc.parser import PdfParser, DocxParser, PlainParser, HtmlParser
-from rag.settings import cron_logger
 
 
 class Docx(DocxParser):
@@ -48,7 +48,7 @@ class Docx(DocxParser):
                     continue
                 if 'w:br' in run._element.xml and 'type="page"' in run._element.xml:
                     pn += 1
-        return [l for l in lines if l]
+        return [line for line in lines if line]
 
     def __call__(self, filename, binary=None, from_page=0, to_page=100000):
         self.doc = Document(
@@ -62,7 +62,8 @@ class Docx(DocxParser):
                 break
             ## 获取内容的层次和内容
             question_level, p_text = docx_question_level(p, bull)
-            if not p_text.strip("\n"):continue
+            if not p_text.strip("\n"):
+                continue
             lines.append((question_level, p_text))
 
             ## 处理分页符
@@ -83,19 +84,21 @@ class Docx(DocxParser):
                     break
                 e += 1
             ## s访问过或者没有找到层级比s更深的
-            if e - s == 1 and visit[s]: continue
+            if e - s == 1 and visit[s]:
+                continue
             sec = []
             next_level = lines[s][0] + 1
             while not sec and next_level < 22:
                 for i in range(s+1, e):
-                    if lines[i][0] != next_level: continue
+                    if lines[i][0] != next_level:
+                        continue
                     sec.append(lines[i][1])
                     visit[i] = True
                 next_level += 1
             sec.insert(0, lines[s][1])
 
             sections.append("\n".join(sec))
-        return [l for l in sections if l]
+        return [s for s in sections if s]
 
     def __str__(self) -> str:
         return f'''
@@ -113,7 +116,9 @@ class Pdf(PdfParser):
 
     def __call__(self, filename, binary=None, from_page=0,
                  to_page=100000, zoomin=3, callback=None):
-        callback(msg="OCR is running...")
+        from timeit import default_timer as timer
+        start = timer()
+        callback(msg="OCR started")
         self.__images__(
             filename if not binary else binary,
             zoomin,
@@ -121,17 +126,16 @@ class Pdf(PdfParser):
             to_page,
             callback
         )
-        callback(msg="OCR finished")
+        callback(msg="OCR finished ({:.2f}s)".format(timer() - start))
 
-        from timeit import default_timer as timer
         start = timer()
         self._layouts_rec(zoomin)
-        callback(0.67, "Layout analysis finished")
-        cron_logger.info("layouts:".format(
-            (timer() - start) / (self.total_page + 0.1)))
+        callback(0.67, "Layout analysis ({:.2f}s)".format(timer() - start))
+        logging.debug("layouts:".format(
+            ))
         self.naive_vertical_merge()
 
-        callback(0.8, "Text extraction finished")
+        callback(0.8, "Text extraction ({:.2f}s)".format(timer() - start))
 
         return [(b["text"], self._line_tag(b, zoomin))
                 for b in self.boxes], None
@@ -154,11 +158,9 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
 
     if re.search(r"\.docx$", filename, re.IGNORECASE):
         callback(0.1, "Start to parse.")
-        for txt in Docx()(filename, binary):
-            sections.append(txt)
-        callback(0.8, "Finish parsing.")
-        chunks = sections
-        return tokenize_chunks(chunks, doc, eng, pdf_parser)
+        chunks = Docx()(filename, binary)
+        callback(0.7, "Finish parsing.")
+        return tokenize_chunks(chunks, doc, eng, None)
 
     elif re.search(r"\.pdf$", filename, re.IGNORECASE):
         pdf_parser = Pdf() if kwargs.get(
@@ -170,25 +172,15 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
 
     elif re.search(r"\.txt$", filename, re.IGNORECASE):
         callback(0.1, "Start to parse.")
-        txt = ""
-        if binary:
-            encoding = find_codec(binary)
-            txt = binary.decode(encoding, errors="ignore")
-        else:
-            with open(filename, "r") as f:
-                while True:
-                    l = f.readline()
-                    if not l:
-                        break
-                    txt += l
+        txt = get_text(filename, binary)
         sections = txt.split("\n")
-        sections = [l for l in sections if l]
+        sections = [s for s in sections if s]
         callback(0.8, "Finish parsing.")
 
     elif re.search(r"\.(htm|html)$", filename, re.IGNORECASE):
         callback(0.1, "Start to parse.")
         sections = HtmlParser()(filename, binary)
-        sections = [l for l in sections if l]
+        sections = [s for s in sections if s]
         callback(0.8, "Finish parsing.")
 
     elif re.search(r"\.doc$", filename, re.IGNORECASE):
@@ -196,7 +188,7 @@ def chunk(filename, binary=None, from_page=0, to_page=100000,
         binary = BytesIO(binary)
         doc_parsed = parser.from_buffer(binary)
         sections = doc_parsed['content'].split('\n')
-        sections = [l for l in sections if l]
+        sections = [s for s in sections if s]
         callback(0.8, "Finish parsing.")
 
     else:

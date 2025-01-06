@@ -6,15 +6,13 @@ Reference:
 """
 
 import logging
-from typing import Any, cast, List
 import html
+from typing import Any, cast
 from graspologic.partition import hierarchical_leiden
 from graspologic.utils import largest_connected_component
 
 import networkx as nx
 from networkx import is_empty
-
-log = logging.getLogger(__name__)
 
 
 def _stabilize_graph(graph: nx.Graph) -> nx.Graph:
@@ -80,7 +78,8 @@ def _compute_leiden_communities(
 ) -> dict[int, dict[str, int]]:
     """Return Leiden root communities."""
     results: dict[int, dict[str, int]] = {}
-    if is_empty(graph): return results
+    if is_empty(graph):
+        return results
     if use_lcc:
         graph = stable_largest_connected_component(graph)
 
@@ -99,10 +98,11 @@ def run(graph: nx.Graph, args: dict[str, Any]) -> dict[int, dict[str, dict]]:
     max_cluster_size = args.get("max_cluster_size", 12)
     use_lcc = args.get("use_lcc", True)
     if args.get("verbose", False):
-        log.info(
+        logging.debug(
             "Running leiden with max_cluster_size=%s, lcc=%s", max_cluster_size, use_lcc
         )
-    if not graph.nodes(): return {}
+    if not graph.nodes():
+        return {}
 
     node_id_to_community_map = _compute_leiden_communities(
         graph=graph,
@@ -127,23 +127,18 @@ def run(graph: nx.Graph, args: dict[str, Any]) -> dict[int, dict[str, dict]]:
             result[community_id]["nodes"].append(node_id)
             result[community_id]["weight"] += graph.nodes[node_id].get("rank", 0) * graph.nodes[node_id].get("weight", 1)
         weights = [comm["weight"] for _, comm in result.items()]
-        if not weights:continue
+        if not weights:
+            continue
         max_weight = max(weights)
-        for _, comm in result.items(): comm["weight"] /= max_weight
+        for _, comm in result.items():
+            comm["weight"] /= max_weight
 
     return results_by_level
 
 
-def add_community_info2graph(graph: nx.Graph, commu_info: dict[str, dict[str, dict]]):
-    for lev, cluster_info in commu_info.items():
-        for cid, nodes in cluster_info.items():
-            for n in nodes["nodes"]:
-                if "community" not in graph.nodes[n]: graph.nodes[n]["community"] = {}
-                graph.nodes[n]["community"].update({lev: cid})
-
-
-def add_community_info2graph(graph: nx.Graph, nodes: List[str], community_title):
+def add_community_info2graph(graph: nx.Graph, nodes: list[str], community_title):
     for n in nodes:
         if "communities" not in graph.nodes[n]:
             graph.nodes[n]["communities"] = []
         graph.nodes[n]["communities"].append(community_title)
+        graph.nodes[n]["communities"] = list(set(graph.nodes[n]["communities"]))

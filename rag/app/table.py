@@ -20,7 +20,8 @@ from openpyxl import load_workbook
 from dateutil.parser import parse as datetime_parse
 
 from api.db.services.knowledgebase_service import KnowledgebaseService
-from rag.nlp import rag_tokenizer, is_english, tokenize, find_codec
+from deepdoc.parser.utils import get_text
+from rag.nlp import rag_tokenizer, tokenize
 from deepdoc.parser import ExcelParser
 
 
@@ -40,7 +41,8 @@ class Excel(ExcelParser):
         for sheetname in wb.sheetnames:
             ws = wb[sheetname]
             rows = list(ws.rows)
-            if not rows:continue
+            if not rows:
+                continue
             ## 解析表头
             headers = [cell.value for cell in rows[0]]
             missed = set([i for i, h in enumerate(headers) if h is None])
@@ -48,7 +50,8 @@ class Excel(ExcelParser):
                 cell.value for i,
                 cell in enumerate(
                     rows[0]) if i not in missed]
-            if not headers:continue
+            if not headers:
+                continue
             data = []
             for i, r in enumerate(rows[1:]):
                 ## 获取单元格内容
@@ -65,6 +68,8 @@ class Excel(ExcelParser):
                     continue
                 data.append(row)
                 done += 1
+            if np.array(data).size == 0:
+                continue
             res.append(pd.DataFrame(np.array(data), columns=headers))
 
         callback(0.3, ("Extract records: {}~{}".format(from_page + 1, min(to_page, from_page + rn)) + (
@@ -75,7 +80,7 @@ class Excel(ExcelParser):
 def trans_datatime(s):
     try:
         return datetime_parse(s.strip()).strftime("%Y-%m-%d %H:%M:%S")
-    except Exception as e:
+    except Exception:
         pass
 
 
@@ -90,7 +95,6 @@ def trans_bool(s):
 ## 列数据类型
 def column_data_type(arr):
     arr = list(arr)
-    uni = len(set([a for a in arr if a is not None]))
     counts = {"int": 0, "float": 0, "text": 0, "datetime": 0, "bool": 0}
     trans = {t: f for f, t in
              [(int, "int"), (float, "float"), (trans_datatime, "datetime"), (trans_bool, "bool"), (str, "text")]}
@@ -114,7 +118,7 @@ def column_data_type(arr):
             continue
         try:
             arr[i] = trans[ty](str(arr[i]))
-        except Exception as e:
+        except Exception:
             arr[i] = None
     # if ty == "text":
     #    if len(arr) > 128 and uni / len(arr) < 0.1:
@@ -149,17 +153,7 @@ def chunk(filename, binary=None, from_page=0, to_page=10000000000,
             callback=callback)
     elif re.search(r"\.(txt|csv)$", filename, re.IGNORECASE):
         callback(0.1, "Start to parse.")
-        txt = ""
-        if binary:
-            encoding = find_codec(binary)
-            txt = binary.decode(encoding, errors="ignore")
-        else:
-            with open(filename, "r") as f:
-                while True:
-                    l = f.readline()
-                    if not l:
-                        break
-                    txt += l
+        txt = get_text(filename, binary)
         lines = txt.split("\n")
         fails = []
         headers = lines[0].split(kwargs.get("delimiter", "\t"))
@@ -169,7 +163,7 @@ def chunk(filename, binary=None, from_page=0, to_page=10000000000,
                 continue
             if i >= to_page:
                 break
-            row = [l for l in line.split(kwargs.get("delimiter", "\t"))]
+            row = [field for field in line.split(kwargs.get("delimiter", "\t"))]
             if len(row) != len(headers):
                 fails.append(str(i))
                 continue

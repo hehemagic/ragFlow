@@ -1,3 +1,4 @@
+import path from 'path';
 import { defineConfig } from 'umi';
 import { appName } from './src/conf.json';
 import routes from './src/routes';
@@ -5,7 +6,7 @@ import routes from './src/routes';
 export default defineConfig({
   title: appName,
   outputPath: 'dist',
-  // alias: { '@': './src' },
+  alias: { '@parent': path.resolve(__dirname, '../') },
   npmClient: 'npm',
   base: '/',
   routes,
@@ -18,8 +19,10 @@ export default defineConfig({
   history: {
     type: 'browser',
   },
-  plugins: ['@react-dev-inspector/umi4-plugin', '@umijs/plugins/dist/dva'],
-  dva: {},
+  plugins: [
+    '@react-dev-inspector/umi4-plugin',
+    '@umijs/plugins/dist/tailwindcss',
+  ],
   jsMinifier: 'terser',
   lessLoader: {
     modifyVars: {
@@ -27,14 +30,25 @@ export default defineConfig({
     },
   },
   devtool: 'source-map',
-  copy: ['src/conf.json'],
-  proxy: {
-    '/v1': {
-      target: 'http://localhost:9380/',
+  copy: [
+    { from: 'src/conf.json', to: 'dist/conf.json' },
+    { from: 'node_modules/monaco-editor/min/vs/', to: 'dist/vs/' },
+  ],
+  proxy: [
+    {
+      context: ['/api', '/v1'],
+      target: 'http://127.0.0.1:9380/',
       changeOrigin: true,
       ws: true,
       logger: console,
       // pathRewrite: { '^/v1': '/v1' },
     },
+  ],
+
+  chainWebpack(memo, args) {
+    memo.module.rule('markdown').test(/\.md$/).type('asset/source');
+
+    return memo;
   },
+  tailwindcss: {},
 });

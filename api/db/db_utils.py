@@ -15,17 +15,12 @@
 #
 import operator
 from functools import reduce
-from typing import Dict, Type, Union
+
+from playhouse.pool import PooledMySQLDatabase
 
 from api.utils import current_timestamp, timestamp_to_date
 
 from api.db.db_models import DB, DataBaseModel
-from api.db.runtime_config import RuntimeConfig
-from api.utils.log_utils import getLogger
-from enum import Enum
-
-
-LOGGER = getLogger()
 
 
 @DB.connection_context()
@@ -49,7 +44,10 @@ def bulk_insert_into_db(model, data_source, replace_on_conflict=False):
         with DB.atomic():
             query = model.insert_many(data_source[i:i + batch_size])
             if replace_on_conflict:
-                query = query.on_conflict(preserve=preserve)
+                if isinstance(DB, PooledMySQLDatabase):
+                    query = query.on_conflict(preserve=preserve)
+                else:
+                    query = query.on_conflict(conflict_target="id", preserve=preserve)
             query.execute()
 
 
@@ -88,7 +86,7 @@ supported_operators = {
 
 
 def query_dict2expression(
-        model: Type[DataBaseModel], query: Dict[str, Union[bool, int, str, list, tuple]]):
+        model: type[DataBaseModel], query: dict[str, bool | int | str | list | tuple]):
     expression = []
 
     for field, value in query.items():
@@ -106,8 +104,8 @@ def query_dict2expression(
     return reduce(operator.iand, expression)
 
 
-def query_db(model: Type[DataBaseModel], limit: int = 0, offset: int = 0,
-             query: dict = None, order_by: Union[str, list, tuple] = None):
+def query_db(model: type[DataBaseModel], limit: int = 0, offset: int = 0,
+             query: dict = None, order_by: str | list | tuple | None = None):
     data = model.select()
     if query:
         data = data.where(query_dict2expression(model, query))

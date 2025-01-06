@@ -1,7 +1,14 @@
+import {
+  AutoKeywordsItem,
+  AutoQuestionsItem,
+} from '@/components/auto-keywords-item';
+import { useShowAutoKeywords } from '@/components/chunk-method-modal/hooks';
 import Delimiter from '@/components/delimiter';
 import EntityTypesItem from '@/components/entity-types-item';
+import ExcelToHtml from '@/components/excel-to-html';
 import LayoutRecognize from '@/components/layout-recognize';
 import MaxTokenNumber from '@/components/max-token-number';
+import PageRank from '@/components/page-rank';
 import ParseConfiguration, {
   showRaptorParseConfiguration,
 } from '@/components/parse-configuration';
@@ -26,6 +33,7 @@ const ConfigurationForm = ({ form }: { form: FormInstance }) => {
     useFetchKnowledgeConfigurationOnMount(form);
   const { t } = useTranslate('knowledgeConfiguration');
   const handleChunkMethodSelectChange = useHandleChunkMethodSelectChange(form);
+  const showAutoKeywords = useShowAutoKeywords();
 
   return (
     <Form form={form} name="validateOnly" layout="vertical" autoComplete="off">
@@ -62,6 +70,7 @@ const ConfigurationForm = ({ form }: { form: FormInstance }) => {
         <Select placeholder={t('languagePlaceholder')}>
           <Option value="English">{t('english')}</Option>
           <Option value="Chinese">{t('chinese')}</Option>
+          <Option value="Vietnamese">{t('vietnamese')}</Option>
         </Select>
       </Form.Item>
       <Form.Item
@@ -105,7 +114,7 @@ const ConfigurationForm = ({ form }: { form: FormInstance }) => {
           ))}
         </Select>
       </Form.Item>
-
+      <PageRank></PageRank>
       <Form.Item noStyle dependencies={['parser_id']}>
         {({ getFieldValue }) => {
           const parserId = getFieldValue('parser_id');
@@ -119,13 +128,21 @@ const ConfigurationForm = ({ form }: { form: FormInstance }) => {
                   <Delimiter></Delimiter>
                 </>
               )}
+              {showAutoKeywords(parserId) && (
+                <>
+                  <AutoKeywordsItem></AutoKeywordsItem>
+                  <AutoQuestionsItem></AutoQuestionsItem>
+                </>
+              )}
               {parserId === 'naive' && (
                 <>
                   <MaxTokenNumber></MaxTokenNumber>
                   <Delimiter></Delimiter>
                   <LayoutRecognize></LayoutRecognize>
+                  <ExcelToHtml></ExcelToHtml>
                 </>
               )}
+
               {showRaptorParseConfiguration(parserId) && (
                 <ParseConfiguration></ParseConfiguration>
               )}

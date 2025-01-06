@@ -14,8 +14,9 @@
 #  limitations under the License.
 #
 from api.db import StatusEnum, TenantPermission
-from api.db.db_models import Knowledgebase, DB, Tenant
+from api.db.db_models import Knowledgebase, DB, Tenant, User, UserTenant,Document
 from api.db.services.common_service import CommonService
+from peewee import fn
 
 
 class KnowledgebaseService(CommonService):
@@ -23,54 +24,76 @@ class KnowledgebaseService(CommonService):
 
     @classmethod
     @DB.connection_context()
-    def get_by_tenant_ids(cls, joined_tenant_ids, user_id,
-                          page_number, items_per_page, orderby, desc):
-        kbs = cls.model.select().where(
-            ((cls.model.tenant_id.in_(joined_tenant_ids) & (cls.model.permission ==
-                                                            TenantPermission.TEAM.value)) | (
-                         cls.model.tenant_id == user_id))
-            & (cls.model.status == StatusEnum.VALID.value)
+    def list_documents_by_ids(cls,kb_ids):
+        doc_ids=cls.model.select(Document.id.alias("document_id")).join(Document,on=(cls.model.id == Document.kb_id)).where(
+            cls.model.id.in_(kb_ids)
         )
-        if desc:
-            kbs = kbs.order_by(cls.model.getter_by(orderby).desc())
-        else:
-            kbs = kbs.order_by(cls.model.getter_by(orderby).asc())
-
-        kbs = kbs.paginate(page_number, items_per_page)
-
-        return list(kbs.dicts())
+        doc_ids =list(doc_ids.dicts())
+        doc_ids = [doc["document_id"] for doc in doc_ids]
+        return doc_ids
 
     @classmethod
     @DB.connection_context()
-    def get_by_tenant_ids_by_offset(cls, joined_tenant_ids, user_id, offset, count, orderby, desc):
-        kbs = cls.model.select().where(
-            ((cls.model.tenant_id.in_(joined_tenant_ids) & (cls.model.permission ==
-                                                            TenantPermission.TEAM.value)) | (
-                     cls.model.tenant_id == user_id))
-            & (cls.model.status == StatusEnum.VALID.value)
-        )
+    def get_by_tenant_ids(cls, joined_tenant_ids, user_id,
+                          page_number, items_per_page, orderby, desc, keywords):
+        fields = [
+            cls.model.id,
+            cls.model.avatar,
+            cls.model.name,
+            cls.model.language,
+            cls.model.description,
+            cls.model.permission,
+            cls.model.doc_num,
+            cls.model.token_num,
+            cls.model.chunk_num,
+            cls.model.parser_id,
+            cls.model.embd_id,
+            User.nickname,
+            User.avatar.alias('tenant_avatar'),
+            cls.model.update_time
+        ]
+        if keywords:
+            kbs = cls.model.select(*fields).join(User, on=(cls.model.tenant_id == User.id)).where(
+                ((cls.model.tenant_id.in_(joined_tenant_ids) & (cls.model.permission ==
+                                                                TenantPermission.TEAM.value)) | (
+                    cls.model.tenant_id == user_id))
+                & (cls.model.status == StatusEnum.VALID.value),
+                (fn.LOWER(cls.model.name).contains(keywords.lower()))
+            )
+        else:
+            kbs = cls.model.select(*fields).join(User, on=(cls.model.tenant_id == User.id)).where(
+                ((cls.model.tenant_id.in_(joined_tenant_ids) & (cls.model.permission ==
+                                                                TenantPermission.TEAM.value)) | (
+                    cls.model.tenant_id == user_id))
+                & (cls.model.status == StatusEnum.VALID.value)
+            )
         if desc:
             kbs = kbs.order_by(cls.model.getter_by(orderby).desc())
         else:
             kbs = kbs.order_by(cls.model.getter_by(orderby).asc())
 
-        kbs = list(kbs.dicts())
+        count = kbs.count()
 
-        kbs_length = len(kbs)
-        if offset < 0 or offset > kbs_length:
-            raise IndexError("Offset is out of the valid range.")
+        kbs = kbs.paginate(page_number, items_per_page)
 
-        if count == -1:
-            return kbs[offset:]
+        return list(kbs.dicts()), count
 
-        return kbs[offset:offset+count]
+    @classmethod
+    @DB.connection_context()
+    def get_kb_ids(cls, tenant_id):
+        fields = [
+            cls.model.id,
+        ]
+        kbs = cls.model.select(*fields).where(cls.model.tenant_id == tenant_id)
+        kb_ids = [kb.id for kb in kbs]
+        return kb_ids
 
     @classmethod
     @DB.connection_context()
     def get_detail(cls, kb_id):
         fields = [
             cls.model.id,
-            #Tenant.embd_id,
+            # Tenant.embd_id,
             cls.model.embd_id,
             cls.model.avatar,
             cls.model.name,
@@ -81,16 +104,17 @@ class KnowledgebaseService(CommonService):
             cls.model.token_num,
             cls.model.chunk_num,
             cls.model.parser_id,
-            cls.model.parser_config]
+            cls.model.parser_config,
+            cls.model.pagerank]
         kbs = cls.model.select(*fields).join(Tenant, on=(
-                    (Tenant.id == cls.model.tenant_id) & (Tenant.status == StatusEnum.VALID.value))).where(
+                (Tenant.id == cls.model.tenant_id) & (Tenant.status == StatusEnum.VALID.value))).where(
             (cls.model.id == kb_id),
             (cls.model.status == StatusEnum.VALID.value)
         )
         if not kbs:
             return
         d = kbs[0].to_dict()
-        #d["embd_id"] = kbs[0].tenant.embd_id
+        # d["embd_id"] = kbs[0].tenant.embd_id
         return d
 
     @classmethod
@@ -142,3 +166,65 @@ class KnowledgebaseService(CommonService):
     @DB.connection_context()
     def get_all_ids(cls):
         return [m["id"] for m in cls.model.select(cls.model.id).dicts()]
+
+    @classmethod
+    @DB.connection_context()
+    def get_list(cls, joined_tenant_ids, user_id,
+                 page_number, items_per_page, orderby, desc, id, name):
+        kbs = cls.model.select()
+        if id:
+            kbs = kbs.where(cls.model.id == id)
+        if name:
+            kbs = kbs.where(cls.model.name == name)
+        kbs = kbs.where(
+            ((cls.model.tenant_id.in_(joined_tenant_ids) & (cls.model.permission ==
+                                                            TenantPermission.TEAM.value)) | (
+                     cls.model.tenant_id == user_id))
+            & (cls.model.status == StatusEnum.VALID.value)
+        )
+        if desc:
+            kbs = kbs.order_by(cls.model.getter_by(orderby).desc())
+        else:
+            kbs = kbs.order_by(cls.model.getter_by(orderby).asc())
+
+        kbs = kbs.paginate(page_number, items_per_page)
+
+        return list(kbs.dicts())
+
+    @classmethod
+    @DB.connection_context()
+    def accessible(cls, kb_id, user_id):
+        docs = cls.model.select(
+            cls.model.id).join(UserTenant, on=(UserTenant.tenant_id == Knowledgebase.tenant_id)
+            ).where(cls.model.id == kb_id, UserTenant.user_id == user_id).paginate(0, 1)
+        docs = docs.dicts()
+        if not docs:
+            return False
+        return True
+
+    @classmethod
+    @DB.connection_context()
+    def get_kb_by_id(cls, kb_id, user_id):
+        kbs = cls.model.select().join(UserTenant, on=(UserTenant.tenant_id == Knowledgebase.tenant_id)
+            ).where(cls.model.id == kb_id, UserTenant.user_id == user_id).paginate(0, 1)
+        kbs = kbs.dicts()
+        return list(kbs)
+
+    @classmethod
+    @DB.connection_context()
+    def get_kb_by_name(cls, kb_name, user_id):
+        kbs = cls.model.select().join(UserTenant, on=(UserTenant.tenant_id == Knowledgebase.tenant_id)
+            ).where(cls.model.name == kb_name, UserTenant.user_id == user_id).paginate(0, 1)
+        kbs = kbs.dicts()
+        return list(kbs)
+
+    @classmethod
+    @DB.connection_context()
+    def accessible4deletion(cls, kb_id, user_id):
+        docs = cls.model.select(
+            cls.model.id).where(cls.model.id == kb_id, cls.model.created_by == user_id).paginate(0, 1)
+        docs = docs.dicts()
+        if not docs:
+            return False
+        return True
+
